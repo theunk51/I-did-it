@@ -83,11 +83,29 @@ class Conditional():
         return f"Condition({self.if_branch}, {self.then_branch}, {self.else_branch})"
 
 class ControlFlow():
-    """ represents GOTO, GOSUB, and RETURN statments """
-    pass
+    """ 
+    represents GOTO, GOSUB, and RETURN statments 
+    """
+
+    GOTO = 1
+    GOSUB = 2
+    RETURN = 0
+    NEXT = 3
+    STOP = -1
+    def __init__(self, flow_type: str, expr):
+        """ 
+        flow_type  = "GOTO", "GOSUB", "RETURN" or "NEXT"
+        """
+        if flow_type.upper() in ("GOTO", "GOSUB", "RETURN", "NEXT", "STOP"):
+            self.type = flow_type
+        else: 
+            raise ValueError(f"ControlFlow node recived invalid type {flow_type}")
+
+        if flow_type in ("RETURN", "STOP") and expr != None:
+            raise ValueError("Receive value for RETURN expr")
 
 class ForLoop():
-    def __init__(self, lvar:str, start, stop, step):
+    def __init__(self, lvar:str, start:int, stop:int, step:int):
         self.start = start
         self.stop = stop
         self.step = step
@@ -97,11 +115,11 @@ class ForLoop():
         return f"Loop({self.lvar}={self.start}, {self.stop}, {self.step})"
 
 class Print():
-    def __init__(self, exprs):
+    def __init__(self, exprs: list) -> None:
         self.exprs = exprs
 
     def __repr__(self) -> str:
-        return f"PRINT({self.exprs,})"
+        return f"Print({', '.join(str(x) for x in self.exprs)})"
 
 class LineRoot():
     """ represents all the ASTs on a line """
@@ -112,6 +130,57 @@ class LineRoot():
 
     def __repr__(self) -> str:
         return f"LINE: {self.lineno} CHILDREN: {self.body}"
+        # return f"Line({self.lineno}, {self.body})"
 
-class Statement():
+class Next():
+    def __init__(self, var):
+        self.var = var
+
+    def __repr__(self):
+        return f"Next {self.var}"
+
+class Input():
+    def __init__(self, question: str, vars: list):
+        self.vars = vars
+        self.question = question
+    
+    def __repr__(self):
+        return f"Input({self.question}, {self.vars})"
+
+
+class Arrays:
+    def ___init__(self, arrays: list):
+        self.arrays = arrays
+
+    def __repr__(self):
+        return ", ".join([str(a) for a in self.arrays]) 
+
+
+class Dim:
+    """ Represents DIM assigment """
+    def __init__(self, name, dimensions):
+        self.dims = dimensions
+        self.name = name
+
+    def __repr__(self) -> None:
+        self
+
+
+class On:
     pass
+
+class Data:
+    def __init__(self, data):
+        self.data = data
+
+    def __repr__(self):
+        return f"Data: {self.data}"
+
+class Read:
+    def __init__(self, varlist: list):
+        self.vars = varlist
+    
+    def __repr__(self):
+        return f"Read({self.vars})"
+    
+

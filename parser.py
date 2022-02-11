@@ -1,5 +1,7 @@
 from tokens import BasicID as Bt
 from nodes import *
+
+#rgb_to_ansi = lambda r, g, b : f"\033[38;2;{r};{g};{b}m"
 # : COLON is a the line seperator
 
 class Parser:
@@ -12,19 +14,14 @@ class Parser:
         self.token = tokens[self.pos]
         self.lineno = 0
 
+        #color = rgb_to_ansi(13, 145, 33)
+
         stmts = []
         while self.pos < len(self.__tokens):
             self.parse_linenum()
+            # print('\033[41m', s, '\033[0m')
             stmts.append(LineRoot(self.lineno, self.statements()))
-            self.advance()
-        #     s = []
-        #     self.parse_linenum()
-        #     while self.pos < len(self.__tokens) and self.token.type != Bt.NEWLINE:
-        #         s.append(self.statements())
-            
-        #     # self.consume(Bt.NEWLINE)
-        #     self.advance()
-        #     stmts.append(LineRoot(self.lineno, s))
+            self.advance()  # pass newline
         return stmts
 
     def advance(self):
@@ -42,10 +39,10 @@ class Parser:
     def parse_linenum(self):
         if self.token.type == Bt.INTEGER:
             self.lineno = int(self.token.value)
-            self.advance()
+            self.advance()       
         else:
-            print(self.token.type)
-            raise Exception(f"INVALID LINE NUMBER: {self.token}, {self.pos}")
+            # print(self.token.type)
+            raise Exception(f"INVALID LINE NUMBER: {self.token}, {self.lineno}")
 
     def logical(self):
         """ logical : log_not ((AND|OR) log_not))* """
@@ -122,6 +119,8 @@ class Parser:
         if self.token.type == Bt.LET:
             self.consume(Bt.LET)
             return self.assignment()
+        elif self.token.type == Bt.VARID:
+            return self.assignment()
         elif self.token.type == Bt.IF:
              return self.ifstmt()
         elif self.token.type == Bt.FOR:
@@ -129,15 +128,58 @@ class Parser:
         elif self.token.type == Bt.PRINT:
             return self.printstmt()
         elif self.token.type == Bt.REM:
-            pass
-        # impplement support for vars by themselves
-        # elif self.token.type == Bt.NEWLINE:
-        #     self.consume(Bt.NEWLINE)
-        #     self.parse_linenum()
-        else:
-            
-            return self.logical()
-            
+            self.consume(Bt.REM)
+        elif self.token.type == Bt.NEXT:
+            return self.nextstmt()
+        elif self.token.type == Bt.GOSUB:
+            return self.gosubstmt()
+        elif self.token.type == Bt.GOTO:
+            return self.gotostmt()
+        elif self.token.type == Bt.RETURN:
+            return self.returnstmt()
+        elif self.token.type == Bt.STOP:
+            return self.stopstmt()
+        elif self.token.type == Bt.DATA:
+            return self.datastmt()
+        elif self.token.type == Bt.READ:
+            return self.readstmt()
+        elif self.token.type == Bt.DIM:
+            return self.dimstmt()
+
+    def readstmt(self):
+        self.consume(Bt.READ)
+        v = []
+        while self.token.type == Bt.VARID:
+            v.append(self.token.value)
+            self.consume(Bt.VARID)
+            self.consume(Bt.COMMA)
+        return Read(v)
+
+    def datastmt(self):
+        self.consume(Bt.DATA)
+        v = [self.token.value]
+        self.advance()
+
+        while self.token.type == Bt.COMMA:
+            self.consume(Bt.COMMA)
+            v.append(self.token.value)
+            self.advance()
+        
+        return Data(v)
+        
+    def dimstmt(self):
+        """ dim_stmt ::= DIM VARIABLE(INT, (INT,)*) """
+        self.consume(Bt.DIM)
+        arrays = []
+
+        # MSBASIC allows dims of multiple arrays delimited by commas
+        while True:
+             # dim_def :: VARIABLE '(' expression [',' expression]* ')'
+		    name = self.token.value
+            self.consume(Bt.LPAREN)
+             
+
+
     def assignment(self):
         """ LET VARIABLE = expression """
         name = self.token.value
@@ -224,4 +266,54 @@ class Parser:
                 p.append(self.logical())
         return Print(p)
 
-            
+    def nextstmt(self):
+        self.consume(Bt.NEXT)
+        if self.token.type != Bt.VARID:
+            raise SyntaxError(f"Loop vairable should follow NEXT statement on line {self.lineno}")
+        s = self.token.value
+        self.consume(Bt.VARID)
+        return Next(s)
+
+    def gotostmt(self):
+        """ goto_stmt ::= GOTO line_number """
+        self.consume(Bt.GOTO)
+        return ControlFlow("GOTO", self.expression())
+
+    def gosubstmt(self):
+        """ gosub_stmt ::= GOSUB expression """
+        self.consume(Bt.GOSUB)
+        return ControlFlow("GOSUB", self.expression())
+
+    def returnstmt(self):
+        self.consume(Bt.RETURN)
+        return ControlFlow("RETURN", None)
+    
+    def inputstmt(self):
+        """ input_stmt ::= INPUT (#filenum|STRING;) [VARIABLE,]*
+                        |  INPUT STRING; (VARIABLE,)*"""
+        self.consume(Bt.INPUT)
+
+        # parse optional input prompt
+        if self.token.type == Bt.STRING:
+            prompt = self.token.value
+            self.consume(Bt.STRING)
+            self.consume(Bt.SEMI)
+        # aquire prompt variables
+        var_list = []
+        
+        var_list.append(self.token.type)
+        self.consume(Bt.VARID)
+
+        while self.token.type == Bt.COMMA:
+            self.consume(Bt.COMMA)
+            var_list.append(self.factor())
+            continue
+
+        return Input(prompt, var_list)
+
+    def stopstmt(self):
+        self.consume(Bt.STOP)
+        return ControlFlow("STOP", expr=None)
+
+    def datastmt(self):
+        pass

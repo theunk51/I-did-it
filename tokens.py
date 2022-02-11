@@ -4,13 +4,13 @@ class Token:
     def __init__(self, type, value):
         self.type = type
         self.value = value
-        
+
     def __repr__(self):
         return f"Token({self.value}, {self.type})"
 
 
 class BasicID(Enum):
-    EOF = -1
+    EOF = -1 
     VARID = 0
     INTEGER = 1
     FLOAT = 2
@@ -48,7 +48,26 @@ class BasicID(Enum):
     COMMA = 34
     REM = 35
 
+    GOTO = 36
+    GOSUB = 37
+    STEP = 38
+    NEXT = 39
+    STOP = 40
 
+    READ = 41
+    OPEN = 42
+    DATA = 43
+    DIM = 44
+    LIST = 45
+    ON = 46
+
+
+    PI = 55
+
+
+
+
+    # NOTE: Find better waye of matching. this is too long and memory consuming 
     @classmethod
     def match(cls, name: str):
         """Matches string value with token token type."""
@@ -66,7 +85,19 @@ class BasicID(Enum):
         elif name == "SAVE": return cls.SAVE
         elif name == "PRINT": return cls.PRINT
         elif name == "LET": return cls.LET
-
+        elif name == "RETURN": return cls.RETURN
+        elif name == "GOTO": return cls.GOTO
+        elif name == "GOSUB": return cls.GOSUB
+        elif name == "STEP": return cls.STEP
+        elif name == "NEXT": return cls.NEXT
+        elif name == "STOP": return cls.STOP
+        elif name == "READ": return cls.READ
+        elif name == "OPEN": return cls.OPEN
+        elif name == "DATA": return cls.DATA
+        elif name == "DIM": return cls.DIM
+        elif name == "LIST": return cls.LIST
+        elif name == "ON": return cls.ON
+        
         elif name == "*" : return cls.MUL
         elif name == "/" : return cls.DIV
         elif name == "+" : return cls.PLUS
@@ -83,6 +114,8 @@ class BasicID(Enum):
         elif name == ',' : return cls.COMMA
         elif name == '(' : return cls.LPAREN
         elif name == ')' : return cls.RPAREN
+
+        elif name == "PI": return cls.PI
  
         else: return None
 

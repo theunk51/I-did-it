@@ -1,9 +1,9 @@
-from ast import MatchOr
-from tokens import Token, BasicID as BID
+from __future__ import annotations
+from tokens import BasicID as BID, Token
+
 
 class Lexer:
-
-    def advance(self):
+    def advance(self) -> None:
         if self.c == "\n":
             self.col = 0
             self.lineno += 1
@@ -41,22 +41,26 @@ class Lexer:
         self.advance()
         return Token(BID.STRING, v)
     
-    def words(self) -> Token:
+    def keywords(self) -> Token:
         """ tokenizes keywords and variables"""
         v = ''
-        while self.c.isalnum() or self.c in ('$', '_'):
+        while True:
             v += self.c
             self.advance()
+
+            if not self.c.isalnum() or self.c in ("$", "_"):
+                break
         
         if v.upper() == 'REM':
-            while self.c != '\0' or self.c != '\n':
+            while self.c != '\0' and self.c != '\n':
                 v += self.c
                 self.advance()
+            return Token(BID.REM, v)
         
         up = BID.match(v.upper()) 
         return Token(BID.VARID, v) if up == None else Token(up, v.upper())
 
-    def operators(self):
+    def operators(self) -> Token:
         f = self.c
         self.advance()
         
@@ -69,16 +73,21 @@ class Lexer:
                 raise Exception(f"Unknown character {f} as pos {self.pos}")
         return Token(m, f)
 
+    def whitespace(self) -> None:
+        while self.c.isspace() and self.c not in ('\0', '\n'):
+            self.advance()
+
     def tokenize(self, text) -> list[Token]:
-        self.reset()
+        self.__init__()
         self.text = text
         self.c = text[self.pos]
         tokenList = []
 
         while self.c != '\0':
+            
             while self.c.isspace() and self.c != '\n':
                 self.advance()
-
+                
             if self.c == '\n':
                 self.advance()
                 tokenList.append(Token(BID.NEWLINE, '\\n'))
@@ -86,7 +95,7 @@ class Lexer:
                 t = self.number()
                 tokenList.append(t)
             elif self.c.isalpha():
-                t = self.words()
+                t = self.keywords()
                 tokenList.append(t)
             elif self.c in '+-*/=:;%()<>!,':
                 t = self.operators()
@@ -95,18 +104,11 @@ class Lexer:
                 t = self.string()
                 tokenList.append(t)
             elif self.c != '\0':
-                raise SyntaxError(f"Unrecognized charater {self.c} as {self.pos}")
-            
+                raise SyntaxError(f"Unrecognized charater `{self.c}` as {self.pos}")
+            # else:raise SyntaxError(f"Unregonized character `{self.c}` in line {self.lineno} column {self.col}")
         return tokenList
-
 
     def __init__(self) -> None:
         self.pos = 0
         self.lineno = 1
         self.col = 0
-
-    def reset(self):
-        """ Reinitalizes/cleans the class without redefining """ 
-        self.__init__()
-    
-

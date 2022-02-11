@@ -4,13 +4,10 @@ def debug(statement):
     print('\033[41m', statement, '\033[0m')
 
 class Interpreter:
-    
-
     def __init__(self) -> None:
         self.vars = {}
         # stores the entire program as <line num> = AST
         self.program = {}
-
         # records linenumbers of reteun statements
         self.returns = []
 
