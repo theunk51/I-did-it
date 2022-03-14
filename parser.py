@@ -34,7 +34,7 @@ class Parser:
             if self.token.type == typ:
                 self.advance()
                 return None
-        raise Exception(f"Expected type(s) {expected}. Got {self.token.type}")
+        raise Exception(f"Expected type(s) {expected}. Got {self.token.type}\nLine: {self.lineno}")
 
     def parse_linenum(self):
         if self.token.type == Bt.INTEGER:
@@ -43,6 +43,9 @@ class Parser:
         else:
             # print(self.token.type)
             raise Exception(f"INVALID LINE NUMBER: {self.token}, {self.lineno}")
+
+
+
 
     def logical(self):
         """ logical : log_not ((AND|OR) log_not))* """
@@ -115,7 +118,7 @@ class Parser:
             self.consume(Bt.INTEGER, Bt.FLOAT, Bt.STRING, Bt.VARID)
             return Literal(token)
 
-    def statements(self):
+    def statements(self):   
         if self.token.type == Bt.LET:
             self.consume(Bt.LET)
             return self.assignment()
@@ -146,6 +149,8 @@ class Parser:
         elif self.token.type == Bt.DIM:
             return self.dimstmt()
 
+
+    
     def readstmt(self):
         self.consume(Bt.READ)
         v = []
@@ -168,18 +173,35 @@ class Parser:
         return Data(v)
         
     def dimstmt(self):
-        """ dim_stmt ::= DIM VARIABLE(INT, (INT,)*) """
+        """ dim_stmt ::= DIM [VARIABLE(INT (, INT)*) ','?]* """
         self.consume(Bt.DIM)
-        arrays = []
+        arrays = [self.__dim_definition()]
 
         # MSBASIC allows dims of multiple arrays delimited by commas
-        while True:
-             # dim_def :: VARIABLE '(' expression [',' expression]* ')'
-		    name = self.token.value
-            self.consume(Bt.LPAREN)
-             
+        while self.token.type == Bt.COMMA:
+            self.consume(Bt.COMMA)
+            arrays.append(self.__dim_definition())
 
+        return Holder(arrays)
+        
+    def __dim_definition(self):
+        """ dim_def ::= VARIABLE '(' expression [',' expression]* ')' """
+        name = self.token.value
+        self.consume(Bt.VARID)
+        self.consume(Bt.LPAREN)
 
+        dims = []
+        if self.pos <= len(self.__tokens):
+            dims.append(self.expression())
+
+            while self.token.type == Bt.COMMA:
+                self.consume(Bt.COMMA)
+                dims.append(self.expression())
+        self.consume(Bt.RPAREN)
+
+        # current token type should be COMMA
+        return Dim(name, dims)
+        
     def assignment(self):
         """ LET VARIABLE = expression """
         name = self.token.value

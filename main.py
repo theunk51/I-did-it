@@ -45,18 +45,25 @@ rgb_to_ansi = lambda r, g, b : f"\033[38;2;{r};{g};{b}m"
 
 
 
+
+
 if __name__ == "__main__":
     l = Lexer()
     d = Parser()
     i = Interpreter()
 
-    with open('example.bas', 'r') as f:
-       lines = "".join(f.readlines())
-       f.close()
+    # with open('example.bas', 'r') as f:
+    #    lines = "".join(f.readlines())
+    #    f.close()
     
+    lines = """
+            5 LET x = 8
+            10 DIM ARRAY(1,2,3), A2(3, 4, 5)
+            """.strip()
    
     tokens = l.tokenize(lines)
-    # print(yellow, tokens, white)
+    color = rgb_to_ansi(31, 237, 23)
+    print(color, tokens, white)
     tree = d.parse(tokens)
     for t in tree: print(teal, t, white)
-    i.interpret(tree)
+   # i.interpret(tree)

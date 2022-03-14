@@ -147,15 +147,6 @@ class Input():
     def __repr__(self):
         return f"Input({self.question}, {self.vars})"
 
-
-class Arrays:
-    def ___init__(self, arrays: list):
-        self.arrays = arrays
-
-    def __repr__(self):
-        return ", ".join([str(a) for a in self.arrays]) 
-
-
 class Dim:
     """ Represents DIM assigment """
     def __init__(self, name, dimensions):
@@ -165,6 +156,12 @@ class Dim:
     def __repr__(self) -> None:
         self
 
+class Holder():
+    def __init__(self, a):
+        self.arrays = a
+
+    def __repr__(self) -> None:
+        return " , ".join([str(a) for a in self.arrays])
 
 class On:
     pass
