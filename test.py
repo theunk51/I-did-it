@@ -5,6 +5,7 @@ def debug(*s, code='\033[40m'):
     print("DEBUG: ", code, *s, '\033[0m')
 
 
+
 # THis time use tokens as asts sort of
 class AST:
     def __init__(self, token):
@@ -22,11 +23,23 @@ class AST:
         for c in children:
             self.children.append(c)
     
+    def _pass(self, _):
+        """ Has no use in practicality. Only used for clean code purposes """
+        return self
+
     def finalize(self): 
         return self
 
     def __repr__(self):
         return f"AST(Lineno: {self.lineno}, children: {*self.children,})"
+
+def combine(x, y) -> AST:
+    """
+    combines a token with another to from an AST that could be used for unary purposes
+    """
+    a = AST(Token(x.type, None))
+    a.add_child(y)
+    return a
 
     
 class Parser:
@@ -61,18 +74,17 @@ class Parser:
 
     def match(self, *ttypes) -> AST:
         """ 
-        Matches token to expected type; similar to `consume`
+        Matches token to expected type; similar to `consume` in other versions
 
         :return: AST
         """
-        for ttype in ttypes:
-            if self.token.type == ttype:
-                a = AST(self.token)
-                self.advance()
-                return a
-        raise ValueError(f"Expected type(s) {ttypes}. Got {self.token.type}")
 
+        if self.token.type != ttype:
+            raise SyntaxError(f"Got {self.token.type}. Expeced {ttype} on line {self.lineno}")
         
+        a = AST(self.token)
+        self.advance()
+        return a
 
     def parse_statements(ln, root: AST):
         a = self.expression()
@@ -83,7 +95,6 @@ class Parser:
             self.advance()
             root.add_child(self.expression())
         
-    
 
     def factor(self):
         token = self.token
@@ -95,11 +106,11 @@ class Parser:
             self.advance()
             
 
+    def endstmt(self):
+        self.match(Bt.EN)
 
 
 
-class Interpreter:
-    pass
 
 if __name__ == "__main__":
     l = Lexer()

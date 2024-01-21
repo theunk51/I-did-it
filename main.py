@@ -52,18 +52,19 @@ if __name__ == "__main__":
     d = Parser()
     i = Interpreter()
 
-    # with open('example.bas', 'r') as f:
-    #    lines = "".join(f.readlines())
-    #    f.close()
+    with open('example.bas', 'r') as f:
+       lines = "".join(f.readlines())
+       f.close()
     
-    lines = """
-            5 LET x = 8
-            10 DIM ARRAY(1,2,3), A2(3, 4, 5)
-            """.strip()
+    # lines = """
+    #         5 LET x = 8
+    #         10 DIM ARRAY(1,2,3), A2(3, 4, 5)
+    #         """.strip()
    
     tokens = l.tokenize(lines)
     color = rgb_to_ansi(31, 237, 23)
     print(color, tokens, white)
     tree = d.parse(tokens)
-    for t in tree: print(teal, t, white)
-   # i.interpret(tree)
+    for t in tree: 
+        print(teal, t, white)
+    i.interpret(tree)

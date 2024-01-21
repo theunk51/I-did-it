@@ -190,6 +190,7 @@ class Parser:
         self.consume(Bt.VARID)
         self.consume(Bt.LPAREN)
 
+
         dims = []
         if self.pos <= len(self.__tokens):
             dims.append(self.expression())
@@ -200,7 +201,7 @@ class Parser:
         self.consume(Bt.RPAREN)
 
         # current token type should be COMMA
-        return Dim(name, dims)
+        
         
     def assignment(self):
         """ LET VARIABLE = expression """

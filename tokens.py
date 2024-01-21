@@ -60,6 +60,7 @@ class BasicID(Enum):
     DIM = 44
     LIST = 45
     ON = 46
+    END = 47
 
 
     PI = 55
@@ -98,6 +99,7 @@ class BasicID(Enum):
         elif name == "DIM": return cls.DIM
         elif name == "LIST": return cls.LIST
         elif name == "ON": return cls.ON
+        elif name == "END": return cls.END
         
         elif name == "*" : return cls.MUL
         elif name == "/" : return cls.DIV
