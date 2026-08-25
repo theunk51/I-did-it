@@ -100,7 +100,7 @@ class TokenType(Enum):
                 return cls.BOOLEAN
             else:
                 return cls[name]
-        except KeyError | AttributeError:
+        except Exception:
             return None
 
 

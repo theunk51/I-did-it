@@ -1,5 +1,10 @@
 Take two of I-did-parser from 4 years ago
 
+```python
+python -m pytest --cov=src --cov-report=term-missing tst/
+```
+
+
 # References
 1. https://www.dartmouth.edu/basicfifty/commands.html
 1. https://www.zx.net.nz/netware/server/411-kvm-2/webdoc/online/wpguide/07ch02t1.html

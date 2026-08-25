@@ -1,0 +1,122 @@
+import pytest
+from src.lexer import Lexer
+from src.tokens import TokenType
+
+OPERATOR_CASES = [
+    ("+", TokenType.PLUS),
+    ("-", TokenType.MINUS),
+    ("*", TokenType.MUL),
+    ("/", TokenType.DIV),
+    ("%", TokenType.MOD),
+    ("^", TokenType.EXPONENT),
+    ("=", TokenType.EQ),
+    ("<", TokenType.LT),
+    (">", TokenType.GT),
+    ("<=", TokenType.LTEQ),
+    (">=", TokenType.GTEQ),
+    ("<>", TokenType.NEQ),
+    ("(", TokenType.LPAREN),
+    (")", TokenType.RPAREN),
+    (";", TokenType.SEMICOLON),
+    (",", TokenType.COMMA),
+    (":", TokenType.COLON),
+]
+
+
+KEYWORD_CASES = [
+    ("IF", TokenType.IF),
+    ("then", TokenType.THEN), 
+    ("Else", TokenType.ELSE),
+    ("FOR", TokenType.FOR),
+    ("TO", TokenType.TO),
+    ("STEP", TokenType.STEP),
+    ("NEXT", TokenType.NEXT),
+    ("PRINT", TokenType.PRINT),
+    ("LET", TokenType.LET),
+    ("True", TokenType.BOOLEAN)
+]
+
+IDENTIFIER_CASES = [
+    ("A", TokenType.IDENTIFIER),
+    ("X", TokenType.IDENTIFIER),
+    ("B1", TokenType.IDENTIFIER),
+    ("Z9", TokenType.IDENTIFIER),
+    ("c5", TokenType.IDENTIFIER),
+    ("FnD", TokenType.IDENTIFIER),
+    ("SQR", TokenType.SQR),
+    ("TAN", TokenType.TAN)
+]
+
+
+NUMBER_CASES = [
+    ("123", TokenType.INTEGER, "123"),
+    ("0", TokenType.INTEGER, "0"),
+    ("3.14", TokenType.FLOAT, "3.14"),
+    ("0.99", TokenType.FLOAT, "0.99"),
+    ("1.", TokenType.FLOAT, "1."),
+    (".123456", TokenType.FLOAT, ".123456")
+]
+
+
+@pytest.mark.parametrize("source, expected_type", OPERATOR_CASES + KEYWORD_CASES + IDENTIFIER_CASES)
+def test_single_tokens(source, expected_type):
+    lexer = Lexer(source)
+    tokens = list(lexer.tokenize(source))
+    
+    assert tokens[0].type == expected_type
+    assert tokens[-1].type == TokenType.EOF
+
+@pytest.mark.parametrize("source, expected_type, expected_value", NUMBER_CASES)
+def test_numbers(source, expected_type, expected_value):
+    lexer = Lexer(source)
+    tokens = list(lexer.tokenize(source))
+    
+    assert tokens[0].type == expected_type
+    assert tokens[0].value == expected_value
+
+def test_strings():
+    source = '"hello world"'
+    lexer = Lexer(source)
+    tokens = list(lexer.tokenize(source))
+    
+    assert tokens[0].type == TokenType.STRING
+    assert tokens[0].value == "hello world"  # Should strip the quotes
+
+def test_comments():
+    source = "REM This is a comment\n A = 1"
+    lexer = Lexer(source)
+    tokens = list(lexer.tokenize(source))
+    
+    assert tokens[0].type == TokenType.REM
+    assert tokens[0].value == "REM This is a comment"
+    assert tokens[1].type == TokenType.NEWLINE
+
+def test_multiple_tokens_in_statement():
+    source = "LET A1 = 10"
+    lexer = Lexer(source)
+    tokens = list(lexer.tokenize(source))
+    
+    assert tokens[0].type == TokenType.LET
+    assert tokens[1].type == TokenType.IDENTIFIER
+    assert tokens[1].value == "A1"
+    assert tokens[2].type == TokenType.EQ
+    assert tokens[3].type == TokenType.INTEGER
+    assert tokens[3].value == "10"
+    assert tokens[4].type == TokenType.EOF
+
+
+def test_unclosed_string():
+    lexer = Lexer('"unclosed')
+    # Note: Matching the typo "qoutes" that currently exists in your lexer.py!
+    with pytest.raises(SyntaxError, match="Unmatched qoutes"):
+        list(lexer.tokenize('"unclosed'))
+
+def test_too_many_decimals():
+    lexer = Lexer("1.2.3")
+    with pytest.raises(SyntaxError, match="Expected one decimal point"):
+        list(lexer.tokenize("1.2.3"))
+
+def test_unrecognized_char():
+    lexer = Lexer("@")
+    with pytest.raises(SyntaxError, match="Unrecognized character"):
+        list(lexer.tokenize("@"))

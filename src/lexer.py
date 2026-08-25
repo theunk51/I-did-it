@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Iterator
-from tokens import TokenType, Token
+from .tokens import TokenType, Token
 
 class Lexer:
     def advance(self) -> None:
@@ -21,15 +21,16 @@ class Lexer:
         has_decimal = False
         v = ''
         while self.c.isdigit() or self.c == '.':
-            v += self.c
-            self.advance()
-
             # check for decimal or 2nd decimal
-            if self.c == '.' and not has_decimal:
+            if self.c == '.':
+                if has_decimal:
+                    raise SyntaxError(f"Expected one decimal point but received two at line {self.lineno} column {self.col}")
                 has_decimal = True
                 _type = TokenType.FLOAT
-            else: 
-                raise SyntaxError(f"Expected one decimal point but received two at line {self.lineno} column {self.col}")
+
+            v += self.c
+            self.advance()
+            
         return Token(_type, v)
 
     def string(self) -> Token:
@@ -60,21 +61,26 @@ class Lexer:
                 self.advance()
             return Token(TokenType.REM, v)
         
-        up = TokenType.match(v.upper()) 
-        return Token(TokenType.VARID, v) if up == None else Token(up, v.upper())
+        up = TokenType.find_type(v.upper())
+        if up == None:
+            return Token(TokenType.IDENTIFIER, v)
+        return Token(up, v.upper())
 
     def operators(self) -> Token:
-        f = self.c
+        one_char = self.c
         self.advance()
-        
-        m = TokenType.match(f)
-        if m == None:
-            f += self.c
+
+        two_char = one_char + self.c
+        match_two = TokenType.find_type(two_char)
+        if match_two is not None:
             self.advance()
-            m = TokenType.match(f)
-            if m == None:
-                raise Exception(f"Unknown character {f} as pos {self.pos}")
-        return Token(m, f)
+            return Token(match_two, two_char)
+
+        match_one = TokenType.find_type(one_char)
+        if match_one is not None:
+            return Token(match_one, one_char)
+        
+        raise Exception(f"Unknown character {one_char} as pos {self.pos}")
 
     def whitespace(self) -> None:
         while self.c.isspace() and self.c not in ('\0', '\n'):
@@ -88,20 +94,20 @@ class Lexer:
                 self.whitespace()
                 continue
             
-        if self.c == '\n':
-            yield Token(TokenType.NEWLINE, '\\n')
-            self.advance()
-        elif self.c.isdigit():
-            yield self.number()
-        elif self.c.isalpha():
-            yield self.keywords()
-        elif self.c in '+-*/=:;%()<>!,':
-            yield self.operators()
-        elif self.c == '"':
-            yield self.string()
-        else:
-            raise SyntaxError(f"Unrecognized character '{self.c}' at line {self.lineno} column {self.col}")
-            
+            if self.c == '\n':
+                yield Token(TokenType.NEWLINE, '\\n')
+                self.advance()
+            elif self.c.isdigit() or self.c == '.':
+                yield self.number()
+            elif self.c.isalpha():
+                yield self.keywords()
+            elif self.c in '+-*/=:;%()<>!,^':
+                yield self.operators()
+            elif self.c == '"':
+                yield self.string()
+            else:
+                raise SyntaxError(f"Unrecognized character '{self.c}' at line {self.lineno} column {self.col}")
+                
         # always yield an EOF token at the end so the parser knows to stop
         yield Token(TokenType.EOF, "EOF")
                     
