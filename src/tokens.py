@@ -135,3 +135,28 @@ BUILTIN_FUNCTIONS = frozenset([
     TokenType.INT, TokenType.RND
 ])
 
+# Higher numbers mean tighter binding (higher precedence)
+# These values assume left associativity.
+PRECEDENCES = {
+    TokenType.EQ: 10,
+    TokenType.NEQ: 10,
+    TokenType.LT: 20,
+    TokenType.GT: 20,
+    TokenType.LTEQ: 20,
+    TokenType.GTEQ: 20,
+    TokenType.PLUS: 30,
+    TokenType.MINUS: 30,
+    TokenType.MUL: 40,
+    TokenType.DIV: 40,
+    TokenType.MOD: 40,
+    TokenType.EXPONENT: 50,  # Exponents bind tighter than multiplication
+    TokenType.LPAREN: 60,    # Function calls / grouping bind the tightest
+}
+for func in BUILTIN_FUNCTIONS:
+    PRECEDENCES[func] = 60
+
+RIGHT_ASSOCIATIVE = frozenset([ TokenType.EXPONENT ])
+
+def is_right_associative(token_type: TokenType) -> bool:
+    """Returns True if the token type is right-associative."""
+    return token_type in RIGHT_ASSOCIATIVE

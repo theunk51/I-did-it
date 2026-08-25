@@ -7,6 +7,7 @@ Take two of I-did-parser from 4 years ago
 1. https://retrocomputingforum.com/t/dartmouth-basic-v4-emulator/4426/6
 1. https://archive.org/details/bitsavers_dartmouthB_3679804/page/n37/mode/2up
 1. [Beginner's Guide to BASIC](https://programming.muthu.co/posts/beginners-guide-to-basic/#google_vignette)
+1. https://pdubroy.github.io/200andchange/precedence-climbing/
 
 # To-Do
 ### 📦 1. Program Structure & Statements
