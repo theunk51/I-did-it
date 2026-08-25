@@ -104,13 +104,12 @@ class TokenType(Enum):
             return None
 
 
-
 KEYWORDS = frozenset([
-    TokenType.IF, TokenType.THEN, TokenType.ELSE, TokenType.FOR, TokenType.TO, 
-    TokenType.STEP, TokenType.NEXT, TokenType.INPUT, TokenType.PRINT, TokenType.LET, 
-    TokenType.RETURN, TokenType.GOTO, TokenType.GOSUB, TokenType.STOP, TokenType.READ, 
-    TokenType.OPEN, TokenType.DATA, TokenType.DIM, TokenType.LIST, TokenType.ON, 
-    TokenType.END, TokenType.LOAD, TokenType.SAVE, TokenType.REM
+    TokenType.IF, TokenType.THEN, TokenType.ELSE, TokenType.FOR, 
+    TokenType.TO, TokenType.STEP, TokenType.NEXT, TokenType.INPUT, 
+    TokenType.PRINT, TokenType.LET, TokenType.RETURN, TokenType.GOTO, 
+    TokenType.GOSUB, TokenType.STOP, TokenType.READ, TokenType.DATA, 
+    TokenType.DIM, TokenType.REM
 ])
 
 ARITHMETIC_OPERATORS = frozenset([
