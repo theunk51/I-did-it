@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto, unique
 
 class Token:
     def __init__(self, type, value):
@@ -8,117 +8,130 @@ class Token:
     def __repr__(self):
         return f"Token({self.value}, {self.type})"
 
+@unique
+class TokenType(Enum):
+    # Miscellaneous
+    EOF = -1
+    IDENTIFIER = auto()
+    INTEGER = auto()
+    FLOAT = auto()
+    STRING = auto()
+    BOOLEAN = auto()
+    NEWLINE = auto()
 
-class BasicID(Enum):
-    EOF = -1 
-    VARID = 0
-    INTEGER = 1
-    FLOAT = 2
-    STRING = 3
-    NEWLINE = 4
+    # Keywords
+    IF = auto()
+    THEN = auto()
+    ELSE = auto()
+    FOR = auto()
+    TO = auto()
+    STEP = auto()
+    NEXT = auto()
+    INPUT = auto()
+    PRINT = auto()
+    LET = auto()
+    RETURN = auto()
+    GOTO = auto()
+    GOSUB = auto()
+    STOP = auto()
+    READ = auto()
+    DATA = auto()
+    DIM = auto()
+    REM = auto()
+    
+    # Logical Operators
+    AND = auto()
+    OR = auto()
+    NOT = auto()
 
-    IF = 5; THEN = 6; ELSE = 7
+    # Arithmetic Operators
+    PLUS = auto()
+    MINUS = auto()
+    MUL = auto()
+    DIV = auto()
+    MOD = auto()
+    EXPONENT = auto()
 
-    MUL = 8
-    DIV = 9
-    MINUS = 10
-    MOD = 11
-    PLUS = 12
-    RETURN = 13
-    FOR = 14
-    INPUT = 15
-    AND = 16
-    OR = 17
-    NOT = 18
-    EQ = 19
-    NEQ = 20
-    LT = 21
-    GT = 22
-    LTEQ = 23
-    GTEQ = 24
-    LET = 25
-    TO = 26
-    LPAREN = 27
-    RPAREN = 28
-    PRINT = 29
-    LOAD = 30
-    SAVE = 31
-    COLON = 32
-    SEMI = 33
-    COMMA = 34
-    REM = 35
+    # Relational Operators
+    EQ = auto()
+    NEQ = auto()
+    LT = auto()
+    GT = auto()
+    LTEQ = auto()
+    GTEQ = auto()
 
-    GOTO = 36
-    GOSUB = 37
-    STEP = 38
-    NEXT = 39
-    STOP = 40
+    # Punctuation / Delimiters
+    LPAREN = auto()
+    RPAREN = auto()
+    COLON = auto()
+    SEMICOLON = auto()
+    COMMA = auto()
 
-    READ = 41
-    OPEN = 42
-    DATA = 43
-    DIM = 44
-    LIST = 45
-    ON = 46
-    END = 47
+    # Built-in Math Functions
+    SIN = auto()
+    COS = auto()
+    TAN = auto()
+    ATN = auto()
+    EXP = auto()
+    LOG = auto()
+    ABS = auto()
+    SQR = auto()
+    INT = auto()
+    RND = auto()
 
 
-    PI = 55
-
-    ROOT = 100
-
-
-
-    # NOTE: Find better waye of matching. this is too long and memory consuming 
     @classmethod
-    def match(cls, name: str):
-        """Matches string value with token token type."""
-        if name == "IF": return cls.IF
-        elif name == "THEN": return cls.THEN
-        elif name == "ELSE": return cls.ELSE
-        elif name == "FOR": return cls.FOR
-        elif name == "TO": return cls.TO
-        elif name == "AND": return cls.AND
-        elif name == "NOT": return cls.NOT
-        elif name == "OR": return cls.OR
-        elif name == "INPUT": return cls.INPUT
-        elif name == "REM": return cls.REM
-        elif name == "LOAD": return cls.LOAD
-        elif name == "SAVE": return cls.SAVE
-        elif name == "PRINT": return cls.PRINT
-        elif name == "LET": return cls.LET
-        elif name == "RETURN": return cls.RETURN
-        elif name == "GOTO": return cls.GOTO
-        elif name == "GOSUB": return cls.GOSUB
-        elif name == "STEP": return cls.STEP
-        elif name == "NEXT": return cls.NEXT
-        elif name == "STOP": return cls.STOP
-        elif name == "READ": return cls.READ
-        elif name == "OPEN": return cls.OPEN
-        elif name == "DATA": return cls.DATA
-        elif name == "DIM": return cls.DIM
-        elif name == "LIST": return cls.LIST
-        elif name == "ON": return cls.ON
-        elif name == "END": return cls.END
+    def find_type(cls, name: str):
+        """Matches string value with token type."""
+        symbols = {
+            "^": cls.EXPONENT, "*": cls.MUL, "/": cls.DIV, "+": cls.PLUS, "-": cls.MINUS,
+            "%": cls.MOD, "<": cls.LT, "<=": cls.LTEQ, ">": cls.GT,
+            ">=": cls.GTEQ, "=": cls.EQ, "<>": cls.NEQ, ":": cls.COLON,
+            ";": cls.SEMICOLON, ",": cls.COMMA, "(": cls.LPAREN, ")": cls.RPAREN
+        }
         
-        elif name == "*" : return cls.MUL
-        elif name == "/" : return cls.DIV
-        elif name == "+" : return cls.PLUS
-        elif name == "-" : return cls.MINUS
-        elif name == "%" : return cls.MOD
-        elif name == "<" : return cls.LT
-        elif name == "<=": return cls.LTEQ
-        elif name == ">" : return cls.GT
-        elif name == ">=": return cls.GTEQ
-        elif name == "=" : return cls.EQ
-        elif name == "!=": return cls.NEQ
-        elif name == ":" : return cls.COLON
-        elif name == ';' : return cls.SEMI
-        elif name == ',' : return cls.COMMA
-        elif name == '(' : return cls.LPAREN
-        elif name == ')' : return cls.RPAREN
+        if name in symbols:
+            return symbols[name]
 
-        elif name == "PI": return cls.PI
- 
-        else: return None
+        # For keywords like "IF", "THEN", look them up directly via the Enum class
+        try:
+            name = name.upper()
+            if name in ("TRUE", "FALSE"):
+                return cls.BOOLEAN
+            else:
+                return cls[name]
+        except KeyError | AttributeError:
+            return None
+
+
+
+KEYWORDS = frozenset([
+    TokenType.IF, TokenType.THEN, TokenType.ELSE, TokenType.FOR, TokenType.TO, 
+    TokenType.STEP, TokenType.NEXT, TokenType.INPUT, TokenType.PRINT, TokenType.LET, 
+    TokenType.RETURN, TokenType.GOTO, TokenType.GOSUB, TokenType.STOP, TokenType.READ, 
+    TokenType.OPEN, TokenType.DATA, TokenType.DIM, TokenType.LIST, TokenType.ON, 
+    TokenType.END, TokenType.LOAD, TokenType.SAVE, TokenType.REM
+])
+
+ARITHMETIC_OPERATORS = frozenset([
+    TokenType.MUL, TokenType.DIV, TokenType.PLUS, TokenType.MINUS, TokenType.MOD, TokenType.EXPONENT
+])
+
+RELATIONAL_OPERATORS = frozenset([
+    TokenType.EQ, TokenType.NEQ, TokenType.LT, TokenType.GT, TokenType.LTEQ, TokenType.GTEQ
+])
+
+LOGICAL_OPERATORS = frozenset([
+    TokenType.AND, TokenType.OR, TokenType.NOT
+])
+
+OPERATORS = ARITHMETIC_OPERATORS | RELATIONAL_OPERATORS | LOGICAL_OPERATORS
+
+LITERAL_TYPES = frozenset([ TokenType.INTEGER, TokenType.FLOAT, TokenType.STRING, TokenType.IDENTIFIER, TokenType.BOOLEAN ])
+
+BUILTIN_FUNCTIONS = frozenset([
+    TokenType.SIN, TokenType.COS, TokenType.TAN, TokenType.ATN, 
+    TokenType.EXP, TokenType.LOG, TokenType.ABS, TokenType.SQR, 
+    TokenType.INT, TokenType.RND
+])
 
