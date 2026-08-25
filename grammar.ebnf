@@ -1,0 +1,84 @@
+/* NOTE: use https://www.bottlecaps.de/rr/ui#_CompositeExpression to visualize */
+
+
+/* precedence rules */
+expression ::= logical_or
+logical_or ::= logical_and ("OR" logical_and)*
+logical_and ::= equality ("AND" equality)*
+equality ::= comparison ( ("!=" | "==") comparison)*
+comparison ::= term ( ( ">" | ">=" | "<" | "<=" ) term)*
+term ::= factor ( ("+" | "-") factor)*
+factor ::= power ( ("*" | "/") power)*
+power ::= unary ("^" power)?    /* right associative */
+unary ::= ("NOT" | "-" ) unary 
+        | primary
+primary ::= literal 
+          | "(" expression ")" 
+          | func_call
+          | array_access
+
+func_call ::= "FN" letter "(" expression? ")"
+            | builtin_funcs "(" expression ")"
+array_access ::= letter "(" expression ("," expression)? ")"
+
+
+/* language grammar */
+program ::= (line "\n"+)+
+line ::= line_number statement
+statement ::= let_stmt
+            | array_assignment
+            | input_stmt
+            | print_stmt
+            | return_stmt
+            | gosub_stmt
+            | goto_stmt
+            | next_stmt
+            | for_stmt
+            | if_stmt
+            | data_stmt
+            | read_stmt
+            | stop_stmt
+            | func_decl
+            | dim_stmt
+            | rem_stmt
+
+let_stmt ::= "LET" variable "=" expression
+array_assignment ::= array_access "=" expression
+dim_stmt ::= "DIM" letter "(" integer ("," integer)* ")"
+func_decl ::= "DEF" "FN" letter "(" variable? ")" "=" expression 
+input_stmt ::= "INPUT" variable
+return_stmt ::= "RETURN"
+gosub_stmt ::= "GOSUB" line_number
+next_stmt ::= "NEXT" variable
+for_stmt ::= "FOR" variable "=" expression "TO" expression ("STEP" expression)?
+if_stmt ::= "IF" (expression relation_op expression) "THEN" line_number ("ELSE" line_number)?
+goto_stmt ::= "GOTO" line_number
+data_stmt ::= "DATA" expression ("," expression)*
+read_stmt ::= "READ" variable ("," variable)*
+stop_stmt ::= "STOP" 
+            | "END"
+print_stmt ::= "PRINT" print_item? ( print_separator print_item? )* print_separator?
+rem_stmt ::= "REM" "<any text>"
+
+
+/* utilities */
+line_number ::= integer
+builtin_funcs ::= "SIN" | "COS" | "TAN" | "ATN" | "EXP" | "LOG" | "ABS" | "SQR" | "INT" | "RND"
+relation_op ::= "==" | "<>" | "<=" | ">=" | "<" | ">"
+print_item ::= expression | string
+print_separator ::= "," | ";"
+
+literal ::= boolean | string | number | variable 
+string ::= '"' "<any text>" '"'
+boolean ::= "TRUE" | "FALSE"
+variable ::= letter digit?
+
+number ::= float | integer
+float ::= digit+ "."
+        | digit+ "." digit+
+        | "." digit+
+integer ::= digit+
+
+letter ::= "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
+         | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z"
+digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"     
