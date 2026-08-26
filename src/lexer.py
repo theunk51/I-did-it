@@ -3,8 +3,54 @@ from typing import Iterator
 from .tokens import TokenType, Token
 
 class Lexer:
+    """
+    A lexical analyzer that operates as an iterator (generator class), yielding one `Token` object at a time as it
+    processes the input string. Once the end of the input is reached, it yields a final EOF token before raising 
+    StopIteration for subsequent iterations.
+    """
+    def __init__(self, text: str = ""):
+        self.text = text
+        self.pos = 0
+        self.lineno = 1
+        self.col = 0
+
+        if self.text:
+            self.c = self.text[self.pos]
+        else:
+            self.c = '\0'
+
+        self.has_eof_yielded = False
+
+    def __iter__(self) -> Iterator[Token]:
+        return self
+    
+    def __next__(self) -> Token:
+        if self.c.isspace() and self.c != '\n':
+            self.whitespace()   # skip whitespace
+
+        if self.c == '\0':
+            if self.has_eof_yielded == True:
+                raise StopIteration()
+            else:
+                self.has_eof_yielded = True
+                return Token(TokenType.EOF, "\0")            
+        elif self.c == '\n':
+            self.advance()
+            return Token(TokenType.NEWLINE, '\\n')
+        elif self.c.isdigit() or self.c == '.':
+            return self.number()
+        elif self.c.isalpha():
+            return self.keywords()
+        elif self.c in '+-*/=:;%()<>!,^':
+            return self.operators()
+        elif self.c == '"':
+            return self.string()
+        else:
+            raise SyntaxError(f"Unrecognized character '{self.c}' at line {self.lineno} column {self.col}")
+    
+        
     def advance(self) -> None:
-        """Advances the pointer and updates line/column trackers."""
+        """ Advances the text pointer and updates line/column trackers."""
         if self.c == "\n":
             self.col = 0
             self.lineno += 1
@@ -18,14 +64,14 @@ class Lexer:
 
     def number(self) -> Token:
         _type = TokenType.INTEGER
-        has_decimal = False
+        found_decimal = False
         v = ''
         while self.c.isdigit() or self.c == '.':
             # check for decimal or 2nd decimal
             if self.c == '.':
-                if has_decimal:
+                if found_decimal:
                     raise SyntaxError(f"Expected one decimal point but received two at line {self.lineno} column {self.col}")
-                has_decimal = True
+                found_decimal = True
                 _type = TokenType.FLOAT
 
             v += self.c
@@ -41,7 +87,7 @@ class Lexer:
             v += self.c
             self.advance()
         if self.c == '\0':
-            raise SyntaxError(f"Unmatched qoutes at line {self.lineno}")
+            raise SyntaxError(f"Unmatched quotes at line {self.lineno}")
         self.advance()
         return Token(TokenType.STRING, v)
     
@@ -73,7 +119,7 @@ class Lexer:
         two_char = one_char + self.c
         match_two = TokenType.find_type(two_char)
         if match_two is not None:
-            self.advance()
+            self.advance()  # consume second char
             return Token(match_two, two_char)
 
         match_one = TokenType.find_type(one_char)
@@ -85,39 +131,3 @@ class Lexer:
     def whitespace(self) -> None:
         while self.c.isspace() and self.c not in ('\0', '\n'):
             self.advance()
-
-    def tokenize(self, text: str) -> Iterator[Token]:
-        """Generates tokens one by one from the given source code"""
-        self.__init__(text)
-        while self.c != '\0':
-            if self.c.isspace() and self.c != '\n':
-                self.whitespace()
-                continue
-            
-            if self.c == '\n':
-                yield Token(TokenType.NEWLINE, '\\n')
-                self.advance()
-            elif self.c.isdigit() or self.c == '.':
-                yield self.number()
-            elif self.c.isalpha():
-                yield self.keywords()
-            elif self.c in '+-*/=:;%()<>!,^':
-                yield self.operators()
-            elif self.c == '"':
-                yield self.string()
-            else:
-                raise SyntaxError(f"Unrecognized character '{self.c}' at line {self.lineno} column {self.col}")
-                
-        # always yield an EOF token at the end so the parser knows to stop
-        yield Token(TokenType.EOF, "EOF")
-                    
-
-    def __init__(self, text: str = ""):
-        self.text = text
-        self.pos = 0
-        self.lineno = 1
-        self.col = 0
-        if self.text:
-            self.c = self.text[self.pos]
-        else:
-            self.c = '\0'
