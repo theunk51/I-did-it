@@ -1,342 +1,174 @@
-from tokens import BasicID as Bt
-from nodes import *
 
-#rgb_to_ansi = lambda r, g, b : f"\033[38;2;{r};{g};{b}m"
-# : COLON is a the line seperator
+from typing import Literal
+from src.tokens import ARITHMETIC_OPERATORS, LITERAL_TYPES, TokenType, Token, RELATIONAL_OPERATORS
+from src.precedence import Precedence
+from src.lexer import Lexer
+from src.ast_nodes import *
+
+DEFAULT_RULE = (None, None)
 
 class Parser:
-    def __init__(self) -> None:
-        pass
+    __PARSING_RULES = {}
 
-    def parse(self, tokens):
-        self.pos = 0
-        self.__tokens = tokens
-        self.token = tokens[self.pos]
-        self.lineno = 0
+    def __init__(self, source_code: str) -> None:
+        self.lexer = Lexer(source_code)
+        if len(self.__PARSING_RULES) == 0:
+            self.init_rules()
 
-        #color = rgb_to_ansi(13, 145, 33)
+        self.previous_token = None
+        self.current_token = None
+        self.next_token = None
 
-        stmts = []
-        while self.pos < len(self.__tokens):
-            self.parse_linenum()
-            # print('\033[41m', s, '\033[0m')
-            stmts.append(LineRoot(self.lineno, self.statements()))
-            self.advance()  # pass newline
+        self.__advance_token()
+        self.__advance_token()
+
+
+    def __advance_token(self):
+        self.previous_token = self.current_token
+        self.current_token = self.next_token
+
+        try:
+            self.next_token = next(self.lexer)
+        except StopIteration:
+            self.next_token = Token(TokenType.EOF, "\0")
+
+    def consume(self, *expected):
+        """Checks if the current token matches any of the given types. """
+        for typ in expected:
+            if self.current_token.type == typ:
+                self.__advance_token()
+                return self.previous_token
+
+        raise Exception(f"Expected type(s) {expected}. Got {self.current_token.type}")
+
+    def error(self, message: str):
+        raise Exception(message)
+
+    @property
+    def is_at_end(self):
+        return self.current_token.type == TokenType.EOF
+    
+
+    # === PARSING FUNCTIONS === #
+
+    def parse_program(self):
+        stmts = {}
+        while self.current_token.type != TokenType.EOF:
+            # skip over any blank lines
+            if self.current_token.type == TokenType.NEWLINE:
+                self.consume(TokenType.NEWLINE)
+                continue
+
+            line_number = int(self.consume(TokenType.INTEGER).value)
+            statement = self.parse_statement()
+
+            if not self.is_at_end:
+                self.consume(TokenType.NEWLINE)
+            
+            stmts[line_number] = statement
         return stmts
 
-    def advance(self):
-        self.pos += 1
-        if self.pos < len(self.__tokens):
-            self.token = self.__tokens[self.pos]
-        
-    def consume(self, *expected):
-        for typ in expected:
-            if self.token.type == typ:
-                self.advance()
-                return None
-        raise Exception(f"Expected type(s) {expected}. Got {self.token.type}\nLine: {self.lineno}")
-
-    def parse_linenum(self):
-        if self.token.type == Bt.INTEGER:
-            self.lineno = int(self.token.value)
-            self.advance()       
+    def parse_statement(self):
+        if self.current_token.type == TokenType.LET:
+            return self.parse_let_statement()
+        elif self.current_token.type == TokenType.RETURN:
+            return self.parse_return_statement()
         else:
-            # print(self.token.type)
-            raise Exception(f"INVALID LINE NUMBER: {self.token}, {self.lineno}")
+            return self.parse_expression()
 
-
-
-
-    def logical(self):
-        """ logical : log_not ((AND|OR) log_not))* """
-        left = self.log_not()
-        while self.token.type in (Bt.NOT, Bt.AND):
-            op = self.token
-            self.consume(Bt.AND, Bt.NOT)
-            right = self.log_not()
-            left = Binary(left, op, right)
-
-        return left
-
-    def log_not(self):
-        """ not : NOT relation | relation """
-        if self.token.type == Bt.NOT:
-            op = self.token
-            self.consume(Bt.NOT)
-            right = self.relation()
-            return Unary(op, right)
-        else:
-            return self.relation()
-
-    def relation(self):
-        """ relation : term ((rel_op) term)* """
-        left = self.expression()
-
-        while self.token.type in (Bt.GTEQ, Bt.GT, Bt.LTEQ, Bt.LT, Bt.EQ, Bt.NEQ):
-            op = self.token
-            self.consume(Bt.GTEQ, Bt.GT, Bt.LTEQ, Bt.LT, Bt.EQ, Bt.NEQ)
-            right = self.expression()
-            left = Binary(left, op, right)
-        return left
-
-    def expression(self):
-        left = self.term()
-
-        while self.token.type in (Bt.MINUS, Bt.PLUS):
-            op = self.token
-            self.consume(Bt.MINUS, Bt.PLUS)
-            right = self.term()
-            left = Binary(left, op, right)
-        return left
-
-    def term(self):
-        left = self.factor()
-
-        while self.token.type in (Bt.MUL, Bt.MOD, Bt.DIV):
-            op = self.token
-            self.consume(Bt.MUL, Bt.DIV, Bt.MOD)
-            right = self.factor()
-            left = Binary(left, op, right)
-        return left
-
-    def factor(self):
-        """
-        factor : VARIABLE | INT | FLOAT | STRING | (expression)
-        unary  : ((PLUS|MINS) factor)* | factor
-        """
-        token = self.token
-        if token.type in (Bt.PLUS, Bt.MINUS):
-            self.consume(Bt.PLUS, Bt.MINUS)
-            right = self.factor()
-            return Unary(token, right)
-        elif token.type == Bt.LPAREN:
-            self.consume(Bt.LPAREN)
-            group = self.expression()
-            self.consume(Bt.RPAREN)
-            return Grouping(group)
-        elif token.type in (Bt.INTEGER, Bt.FLOAT, Bt.STRING, Bt.VARID):
-            self.consume(Bt.INTEGER, Bt.FLOAT, Bt.STRING, Bt.VARID)
-            return Literal(token)
-
-    def statements(self):   
-        if self.token.type == Bt.LET:
-            self.consume(Bt.LET)
-            return self.assignment()
-        elif self.token.type == Bt.VARID:
-            return self.assignment()
-        elif self.token.type == Bt.IF:
-             return self.ifstmt()
-        elif self.token.type == Bt.FOR:
-            return self.forstmt()
-        elif self.token.type == Bt.PRINT:
-            return self.printstmt()
-        elif self.token.type == Bt.REM:
-            self.consume(Bt.REM)
-        elif self.token.type == Bt.NEXT:
-            return self.nextstmt()
-        elif self.token.type == Bt.GOSUB:
-            return self.gosubstmt()
-        elif self.token.type == Bt.GOTO:
-            return self.gotostmt()
-        elif self.token.type == Bt.RETURN:
-            return self.returnstmt()
-        elif self.token.type == Bt.STOP:
-            return self.stopstmt()
-        elif self.token.type == Bt.DATA:
-            return self.datastmt()
-        elif self.token.type == Bt.READ:
-            return self.readstmt()
-        elif self.token.type == Bt.DIM:
-            return self.dimstmt()
-
-
-    
-    def readstmt(self):
-        self.consume(Bt.READ)
-        v = []
-        while self.token.type == Bt.VARID:
-            v.append(self.token.value)
-            self.consume(Bt.VARID)
-            self.consume(Bt.COMMA)
-        return Read(v)
-
-    def datastmt(self):
-        self.consume(Bt.DATA)
-        v = [self.token.value]
-        self.advance()
-
-        while self.token.type == Bt.COMMA:
-            self.consume(Bt.COMMA)
-            v.append(self.token.value)
-            self.advance()
-        
-        return Data(v)
-        
-    def dimstmt(self):
-        """ dim_stmt ::= DIM [VARIABLE(INT (, INT)*) ','?]* """
-        self.consume(Bt.DIM)
-        arrays = [self.__dim_definition()]
-
-        # MSBASIC allows dims of multiple arrays delimited by commas
-        while self.token.type == Bt.COMMA:
-            self.consume(Bt.COMMA)
-            arrays.append(self.__dim_definition())
-
-        return Holder(arrays)
-        
-    def __dim_definition(self):
-        """ dim_def ::= VARIABLE '(' expression [',' expression]* ')' """
-        name = self.token.value
-        self.consume(Bt.VARID)
-        self.consume(Bt.LPAREN)
-
-
-        dims = []
-        if self.pos <= len(self.__tokens):
-            dims.append(self.expression())
-
-            while self.token.type == Bt.COMMA:
-                self.consume(Bt.COMMA)
-                dims.append(self.expression())
-        self.consume(Bt.RPAREN)
-
-        # current token type should be COMMA
-        
-        
-    def assignment(self):
-        """ LET VARIABLE = expression """
-        name = self.token.value
-        self.consume(Bt.VARID)
-
-        self.consume(Bt.EQ)
-        value = self.expression()
-        return Assignment(name, value)
-
-    def functions(self):
-        """ function : VARIABLE(parameters?) 
-            parameters := VARIABLE(VARIABLE (, VARIABLE)?*)
-        """
-        name = self.token
-        self.advance()
-
-        # exceptions: PI,
-        if name.type == Bt.PI:
-            return Function(name, args=None)
-        else:
-            args = []
-            self.consume(Bt.LPAREN)
-            while self.token.type != Bt.RPAREN:
-                a = self.expression()
-                args.append(a)
-                # move pass arg
-                # self.advance()
-                # pass comma
-                self.consume(Bt.COMMA)
-            self.consume(Bt.RPAREN)
-            return Function(name, args)
-
-    def ifstmt(self):
-        """ if_stmt := IF expression THEN statement (ELSE statement)?"""
-        self.consume(Bt.IF)
-        ifcon = self.logical()
-        self.consume(Bt.THEN)
-        thencon = self.statements()
-        elsecon = None
-        # self.token should be ELSe
-        if self.token.type == Bt.ELSE:
-            self.consume(Bt.ELSE)
-            elsecon = self.statements()
-        
-        return Conditional(ifcon, thencon, elsecon)
-
-    def forstmt(self):
-        """ for_stmt := FOR variable = <expression> TO <expression> [STEP <expression>] """
-        self.consume(Bt.FOR)
-        # should be variable
-        var = self.token.value
-        self.consume(Bt.VARID)
-
-        self.consume(Bt.EQ)
-        start = self.expression()
-
-        self.consume(Bt.TO)
-        end = self.expression()
-        
-        step = 1
-        if self.token.type == Bt.STEP:
-            self.consume(Bt.STEP)
-            step = self.expression()
-        
-        return ForLoop(var, start, end, step)
-    
-    def printstmt(self):
-        """print_stmt ::=  PRINT <print list> 
-                        | expression <print list>
-                        | ';' <print list> 
-        """
-        self.consume(Bt.PRINT)
-        p = []
-        while self.pos < len(self.__tokens) and self.token.type != Bt.NEWLINE:
-            if self.token.type == Bt.STRING:
-                p.append(self.token.value)
-                self.consume(Bt.STRING)
-            elif self.token.type == Bt.COMMA:
-                p.append(" ")
-                self.consume(Bt.COMMA)
-            elif self.token.type == Bt.SEMI:
-                self.consume(Bt.SEMI)
-            else:
-                p.append(self.logical())
-        return Print(p)
-
-    def nextstmt(self):
-        self.consume(Bt.NEXT)
-        if self.token.type != Bt.VARID:
-            raise SyntaxError(f"Loop vairable should follow NEXT statement on line {self.lineno}")
-        s = self.token.value
-        self.consume(Bt.VARID)
-        return Next(s)
-
-    def gotostmt(self):
-        """ goto_stmt ::= GOTO line_number """
-        self.consume(Bt.GOTO)
-        return ControlFlow("GOTO", self.expression())
-
-    def gosubstmt(self):
-        """ gosub_stmt ::= GOSUB expression """
-        self.consume(Bt.GOSUB)
-        return ControlFlow("GOSUB", self.expression())
-
-    def returnstmt(self):
-        self.consume(Bt.RETURN)
-        return ControlFlow("RETURN", None)
-    
-    def inputstmt(self):
-        """ input_stmt ::= INPUT (#filenum|STRING;) [VARIABLE,]*
-                        |  INPUT STRING; (VARIABLE,)*"""
-        self.consume(Bt.INPUT)
-
-        # parse optional input prompt
-        if self.token.type == Bt.STRING:
-            prompt = self.token.value
-            self.consume(Bt.STRING)
-            self.consume(Bt.SEMI)
-        # aquire prompt variables
-        var_list = []
-        
-        var_list.append(self.token.type)
-        self.consume(Bt.VARID)
-
-        while self.token.type == Bt.COMMA:
-            self.consume(Bt.COMMA)
-            var_list.append(self.factor())
-            continue
-
-        return Input(prompt, var_list)
-
-    def stopstmt(self):
-        self.consume(Bt.STOP)
-        return ControlFlow("STOP", expr=None)
-
-    def datastmt(self):
+    def parse_let_statement(self):
         pass
+
+    def parse_return_statement(self):
+        pass
+    
+    def parse_expression(self, precedence):
+        # parses any expression of a given precedence level or higher
+        prefix_function = self.__PARSING_RULES.get(self.current_token.type, DEFAULT_RULE)[0]
+        if prefix_function is None:
+            self.error(f"Unexpected token '{self.current_token.value}' at start of expression")
+        left = prefix_function(self)
+
+        while self.current_token.type != TokenType.EOF:
+            infix_function = self.__PARSING_RULES.get(self.current_token.type, DEFAULT_RULE)[1]
+            if not infix_function:
+                return left
+
+            current_precedence = Precedence.get_prec(self.current_token.type)
+            if precedence >= current_precedence:
+                break
+
+            left = infix_function(self, left)
+        return left
+
+    def parse_unary_expression(self):
+        op_type = self.current_token.value
+        self.consume(TokenType.NOT, TokenType.MINUS)
+        right = self.parse_expression(Precedence.UNARY)
+        return PrefixExpression(op_type, right)
+
+    def parse_binary_expression(self, left: Expression) -> Expression:
+        op_type = self.current_token.value
+        precedence = Precedence.get_prec(self.current_token.type)
+        if Precedence.is_right_associative(self.current_token.type):
+            precedence -= 1
+        
+        self.consume(
+            *ARITHMETIC_OPERATORS, 
+            *RELATIONAL_OPERATORS, 
+            TokenType.AND, 
+            TokenType.OR
+        )
+        
+        right = self.parse_expression(precedence)
+        return InfixExpression(left, op_type, right)
+
+    def parse_grouped_expression(self):
+        self.consume(TokenType.LPAREN)
+        expr = self.parse_expression(Precedence.NONE)
+        self.consume(TokenType.RPAREN)
+        return expr
+        
+    def parse_literal(self):
+        token = self.current_token
+        self.consume(TokenType.INTEGER, TokenType.FLOAT, TokenType.STRING, TokenType.BOOLEAN)
+        
+        if token.type == TokenType.INTEGER:
+            return IntegerLiteral(int(token.value))
+        elif token.type == TokenType.FLOAT:
+            return FloatLiteral(float(token.value))
+        elif token.type == TokenType.STRING:
+            return StringLiteral(token.value)
+        elif token.type == TokenType.BOOLEAN:
+            return BooleanLiteral(token.value.upper() == 'TRUE')
+
+    def parse_identifier(self):
+        self.consume(TokenType.IDENTIFIER)
+        return Identifier(self.previous_token.value)
+    
+    @classmethod
+    def init_rules(cls):
+        cls.__PARSING_RULES = {
+            TokenType.NOT: (cls.parse_unary_expression, None),
+            TokenType.MINUS: (cls.parse_unary_expression, cls.parse_binary_expression),
+            TokenType.PLUS: (None, cls.parse_binary_expression),
+            TokenType.MUL: (None, cls.parse_binary_expression),
+            TokenType.DIV: (None, cls.parse_binary_expression),
+            TokenType.MOD: (None, cls.parse_binary_expression),
+            TokenType.EXPONENT: (None, cls.parse_binary_expression),
+            TokenType.EQ: (None, cls.parse_binary_expression),
+            TokenType.NEQ: (None, cls.parse_binary_expression),
+            TokenType.LT: (None, cls.parse_binary_expression),
+            TokenType.GT: (None, cls.parse_binary_expression),
+            TokenType.LTEQ: (None, cls.parse_binary_expression),
+            TokenType.GTEQ: (None, cls.parse_binary_expression),
+            TokenType.AND: (None, cls.parse_binary_expression),
+            TokenType.OR: (None, cls.parse_binary_expression),
+            TokenType.INTEGER: (cls.parse_literal, None),
+            TokenType.FLOAT: (cls.parse_literal, None),
+            TokenType.STRING: (cls.parse_literal, None),
+            TokenType.BOOLEAN: (cls.parse_literal, None),
+            TokenType.IDENTIFIER: (cls.parse_identifier, None),
+            TokenType.LPAREN: (cls.parse_grouped_expression, None),
+        }
+        
