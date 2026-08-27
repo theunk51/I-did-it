@@ -61,7 +61,7 @@ class Parser:
                 self.consume(TokenType.NEWLINE)
             
             stmts[line_number] = statement
-        return stmts
+        return Program(stmts)
 
     def parse_statement(self):
         if self.current_token.type == TokenType.LET:
@@ -72,7 +72,15 @@ class Parser:
             return self.parse_expression(Precedence.NONE)
 
     def parse_let_statement(self):
-        pass
+        self.consume(TokenType.LET)
+
+        name = Identifier(self.current_token.value)
+        self.consume(TokenType.IDENTIFIER)
+        
+        self.consume(TokenType.EQ)
+        
+        value = self.parse_expression(Precedence.NONE)
+        return LetStatement(name=name, value=value)
 
     def parse_return_statement(self):
         pass
