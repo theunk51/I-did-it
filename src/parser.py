@@ -8,12 +8,8 @@ from src.ast_nodes import *
 DEFAULT_RULE = (None, None)
 
 class Parser:
-    __PARSING_RULES = {}
-
     def __init__(self, source_code: str) -> None:
         self.lexer = Lexer(source_code)
-        if len(self.__PARSING_RULES) == 0:
-            self.init_rules()
 
         self.previous_token = None
         self.current_token = None
@@ -21,7 +17,6 @@ class Parser:
 
         self.__advance_token()
         self.__advance_token()
-
 
     def __advance_token(self):
         self.previous_token = self.current_token
@@ -74,7 +69,7 @@ class Parser:
         elif self.current_token.type == TokenType.RETURN:
             return self.parse_return_statement()
         else:
-            return self.parse_expression()
+            return self.parse_expression(Precedence.NONE)
 
     def parse_let_statement(self):
         pass
@@ -101,7 +96,7 @@ class Parser:
             left = infix_function(self, left)
         return left
 
-    def parse_unary_expression(self):
+    def parse_unary_expression(self) -> Expression:
         op_type = self.current_token.value
         self.consume(TokenType.NOT, TokenType.MINUS)
         right = self.parse_expression(Precedence.UNARY)
@@ -146,29 +141,28 @@ class Parser:
         self.consume(TokenType.IDENTIFIER)
         return Identifier(self.previous_token.value)
     
-    @classmethod
-    def init_rules(cls):
-        cls.__PARSING_RULES = {
-            TokenType.NOT: (cls.parse_unary_expression, None),
-            TokenType.MINUS: (cls.parse_unary_expression, cls.parse_binary_expression),
-            TokenType.PLUS: (None, cls.parse_binary_expression),
-            TokenType.MUL: (None, cls.parse_binary_expression),
-            TokenType.DIV: (None, cls.parse_binary_expression),
-            TokenType.MOD: (None, cls.parse_binary_expression),
-            TokenType.EXPONENT: (None, cls.parse_binary_expression),
-            TokenType.EQ: (None, cls.parse_binary_expression),
-            TokenType.NEQ: (None, cls.parse_binary_expression),
-            TokenType.LT: (None, cls.parse_binary_expression),
-            TokenType.GT: (None, cls.parse_binary_expression),
-            TokenType.LTEQ: (None, cls.parse_binary_expression),
-            TokenType.GTEQ: (None, cls.parse_binary_expression),
-            TokenType.AND: (None, cls.parse_binary_expression),
-            TokenType.OR: (None, cls.parse_binary_expression),
-            TokenType.INTEGER: (cls.parse_literal, None),
-            TokenType.FLOAT: (cls.parse_literal, None),
-            TokenType.STRING: (cls.parse_literal, None),
-            TokenType.BOOLEAN: (cls.parse_literal, None),
-            TokenType.IDENTIFIER: (cls.parse_identifier, None),
-            TokenType.LPAREN: (cls.parse_grouped_expression, None),
-        }
-        
+   
+    __PARSING_RULES = {
+        TokenType.NOT: (parse_unary_expression, None),
+        TokenType.MINUS: (parse_unary_expression, parse_binary_expression),
+        TokenType.PLUS: (None, parse_binary_expression),
+        TokenType.MUL: (None, parse_binary_expression),
+        TokenType.DIV: (None, parse_binary_expression),
+        TokenType.MOD: (None, parse_binary_expression),
+        TokenType.EXPONENT: (None, parse_binary_expression),
+        TokenType.EQ: (None, parse_binary_expression),
+        TokenType.NEQ: (None, parse_binary_expression),
+        TokenType.LT: (None, parse_binary_expression),
+        TokenType.GT: (None, parse_binary_expression),
+        TokenType.LTEQ: (None, parse_binary_expression),
+        TokenType.GTEQ: (None, parse_binary_expression),
+        TokenType.AND: (None, parse_binary_expression),
+        TokenType.OR: (None, parse_binary_expression),
+        TokenType.INTEGER: (parse_literal, None),
+        TokenType.FLOAT: (parse_literal, None),
+        TokenType.STRING: (parse_literal, None),
+        TokenType.BOOLEAN: (parse_literal, None),
+        TokenType.IDENTIFIER: (parse_identifier, None),
+        TokenType.LPAREN: (parse_grouped_expression, None),
+    }
+    
