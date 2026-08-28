@@ -3,188 +3,10 @@
 from pathlib import Path
 from typing import Literal
 
+from src.register_allocation import RegisterAllocator
+from src.debug import print_ast
 from src.ast_nodes import *
 from src.parser import Parser
-
-
-"""
-Before allocating anything, the compiler must figure out the lifespan of every variable.
-A variable is considered "live" from the moment it is defined (e.g., x = 5) until the exact moment it is used for the very last time (e.g., return x + y).
-
-If Variable A dies on line 10, and Variable B is born on line 11, they can safely share the exact same register (RAX, for instance). The compiler maps out these overlapping lifespans to see which variables are "interfering" (alive at the exact same time)
-How compilers choose what to spill:
-A smart compiler doesn't just spill randomly; it uses heuristics:
-
-Spill the least used: If Variable A is used 50 times in a loop, and Variable B is used twice, spill B.
-
-Spill the longest-living: If a variable sits dormant for 100 lines of code between uses, it's a great candidate for the stack.
-
-Never spill loop counters: Variables actively controlling while or for loops should almost always stay in fast registers.
-
-4. Linear Scan (The Faster Alternative)
-Graph coloring produces incredibly optimized code, but solving the graph takes a lot of time. If you are writing a JIT (Just-In-Time) compiler (like the V8 engine in Chrome or the Java JVM), you cannot afford to wait for a graph to solve.
-
-Instead, they use Linear Scan Allocation.
-The compiler reads the code top-to-bottom in a single pass. When a variable is born, it grabs a free register. When the variable dies, it gives the register back. If it needs a register and they are all full, it instantly spills the variable that won't be needed until the furthest point in the future. It is not perfectly optimal, but it is lightning fast to compile
-This is the beauty of Linear Scan Allocation. It guarantees that the CPU registers are always holding the variables that are needed soonest, while variables that are just "waiting around" are shuffled into RAM (the .bss section) until they are actually needed!
-"""
-from dataclasses import dataclass
-from collections import deque
-from bisect import insort
-
-
-"""
-Rather than allocating all variables to stack, and assigning them registers as needed, this compiler can use something
-call Linear Scan allocation. It traverses the program AST node, to determine the lifespan of all variables in the program.
-A variable is considered "live" from the moment it is defined (e.g., x = 5) until the exact moment it is used for the very 
-last time (e.g., return x + y). Register allocation happens during the second pass. When a variable is born, it grabs a 
-free register. When the variable dies, it gives the register back. If there are no more register, it instantly spills 
-the variable that won't be needed until the furthest point in the future. It is not perfectly optimal, but it is lightning
-fast to compile. BASIC defines all variables as globals, but that does not mean a single program will contain 286 variables, 
-thus this optimizes potential over allocation by allocating only what is needed. Linear Scan Allocation guarantees 
-that the CPU registers are always holding the variables that are needed soonest, while variables that are just 
-"waiting around" are shuffled into RAM (the .bss section) until they are actually needed.
-"""
-"""
-Rather than allocating all variables to the stack and moving them into registers as needed, 
-this compiler uses Linear Scan Allocation.
-
-The allocator operates in two passes:
-1. Lifespan Analysis: It traverses the program's AST to determine the lifespan (live range) 
-   of all variables. A variable is considered "live" from the moment it is defined 
-   (e.g., x = 5) until the exact moment it is used for the very last time (e.g., return x + y).
-
-2. Register Allocation: As the program executes top-to-bottom, a variable grabs a free 
-   register when it is born. When the variable dies, it gives the register back. If all 
-   registers are full when a new variable is born, the allocator instantly spills the variable 
-   that won't be needed until the furthest point in the future. 
-
-While not mathematically optimal (like Graph Coloring), Linear Scan allocation is fast to implement
-and compile. Because BASIC defines all variables as globals all register spills go to .BSS. Additionally,
-while BASIC only allows 286 unqiue variables, a single program rarely uses all 286, and allocating all of
-these variables premptively though a single program rarely uses all 286 
-possible variables—this strategy prevents massive overallocation of memory. It guarantees 
-that the fast CPU registers always hold the variables needed soonest, while dormant variables 
-are shuffled into RAM (the .bss section) until they are actually needed again.
-"""
-
-"""
-
-"""
-# look up Stack slot coloring
-
-class RegisterAllocator:
-    @dataclass(slots=True)
-    class Interval:
-        name: str
-        start: int
-        end: int
-
-
-    def __init__(self, program: Program):
-        self.program = program
-
-        # State for Pass 1 (Lifespans)
-        self.variable_intervals: Dict[str, "RegisterAllocator.Interval"] = {}
-        self.current_line = 0
-        
-        # State for Pass 2 (Allocation)
-        self.free_registers = deque([
-            '%r8', '%r9', '%r10', '%r11', '%r12', '%r13', 
-            '%r14', '%rbx', '%rcx', '%rsi', '%rdi', '%rdx'
-        ])
-        self.active_intervals: list["RegisterAllocator.Interval"] = []
-        self.allocation_map: Dict[str, str] = {}
-
-    @classmethod
-    def allocate(cls, program: Program) -> dict[str, str]:
-        """
-        The static entry point. 
-        Creates a short-lived instance to track state during the AST traversal,
-        then returns the final allocation map and discards the instance.
-        """
-        allocator = cls(program)
-        allocator.analyze_variable_lifespans(program)
-        allocator.compute_register_allocation()
-        return allocator.allocation_map
-
-    def analyze_variable_lifespans(self):
-        self.variable_intervals: dict[str, "RegisterAllocator.Interval"] = {}
-        for line, statement in sorted(self.program.statements.items()):
-            self.current_line = line
-            self.analyze_variables_in_nodes(statement)
-
-        for interval in self.variable_intervals:
-            print(f"Variable [interval.name]: Alive from line {interval.start} to {interval.end}")
-
-    def _mark_variable_lifespan(self, variable: str):
-        if variable not in self.variable_intervals:
-            self.variable_intervals[variable] = self.Interval(
-                name=variable,
-                start=self.current_line,
-                end=self.current_line
-            )
-        else:
-            self.variable_intervals[variable].end = self.current_line
-
-    def analyze_variables_in_nodes(self, node: ASTNode):
-        if node is None: 
-            return
-
-        if isinstance(node, LetStatement):
-            self._mark_variable_lifespan(node.name.value)
-            self.analyze_variables_in_nodes(node.value)
-        elif isinstance(node, ExpressionStatement):
-            self.analyze_variables_in_nodes(node.expression)
-        elif isinstance(node, Identifier):
-            self._mark_variable_lifespan(node.value)
-        elif isinstance(node, InfixExpression):
-            self.analyze_variables_in_nodes(node.left)
-            self.analyze_variables_in_nodes(node.right)
-        elif isinstance(node, PrefixExpression):
-            self.analyze_variables_in_nodes(node.right)
-        elif isinstance(node, CallExpression):
-            self.analyze_variables_in_nodes(node.function)
-            for arg in node.arguments:
-                self.analyze_variables_in_nodes(arg)
-
-        # Note: Literals (Integer, Float, String, Boolean) don't contain variables, 
-        # so we don't need to do anything when we hit them.
-
-
-    def compute_register_allocation(self):
-        sorted_intervals = sorted(self.variable_intervals.values(), key=lambda x: x.start)
-        for current_interval in sorted_intervals:
-            # Expire old variables: if another allocated variable dies before the current variable starts,
-            # return the register so that it can be used by the current variable
-            for active_interval in self.active_intervals[:]:
-                if active_interval.end < current_interval.start:
-                    self.active_intervals.remove(active_interval)
-                    register = self.allocation_map[active_interval.name]
-                    self.free_registers.append(register)
-
-            # allocate or spill registers
-            if len(self.free_registers) > 0:
-                register = self.free_registers.popleft()
-                self.allocation_map[current_interval.name] = register
-                insort(self.active_intervals, current_interval, key=lambda x: x.end)
-            else:
-                longest_alive_interval = self.active_intervals[-1]
-                if longest_alive_interval.end > current_interval.end:
-                    # the allocated variable lives longer, so we can steal its register. The kicked
-                    # variable then could be stored on the stack or in the BSS section. The BSS
-                    # section works because there are at most 26 * 11 = 286 variables
-                    register = self.allocation_map[longest_alive_interval.name]
-                    self.allocation_map[longest_alive_interval.name] = f"{longest_alive_interval.name}_bss"
-                    self.allocation_map[current_interval.name] = register
-                    self.active_intervals.pop(-1)
-                    insort(self.allocated_variables, current_interval, key=lambda x: x.end)
-                else:
-                    # the current variable lives the longest so far, so spill into BSS
-                    self.allocation_map[current_interval.name] = f"{current_interval.name}_bss"
-
-
-
 
 class CodeGenerator:
     """
@@ -196,37 +18,80 @@ class CodeGenerator:
         self.current_line_number: int = 0
 
         # assembly program section state
-        self.data_section: list[str] = [".data"]
+        self.data_section: list[str] = []
+        self.bss_section: list[str] = []
         self.text_section: list[str] = []
 
         # program state
-        # - available registers
-        # - current global scope
-        # - the stack pointer offset for variables
+        self.variable_allocation = RegisterAllocator.allocate(ast)
+        self.global_variables = {}
         self.stack_offset = 0
+        self.temporary_registers = ["%rax", "%rdx", "%r15"]
 
 
-    def generate_assembly(self) -> str:
+    def generate_assembly_str(self) -> str:
         """
         Walks the AST program dictionary, compiles each statement, 
         and joins sections into a final assembly string.
         """
+        self.emit(".bss", section="bss")
+        for variable, location in self.variable_allocation.items():
+            if "bss" in location:
+                # Syntax: .lcomm symbol_name, size_in_bytes
+                # local common means that this variable will only be accessible in this program
+                self.emit(f"    .lcomm {variable}_bss, 8", section="bss")
 
-        self.emit(".global _start")
+        self.emit(".data", section="data")
+        self.emit("    format_int: .string \"%d\\n\"", section="data")
+        self.emit("\n")
+
+        self.emit(".global main")
         self.emit(".text")
-        self.emit("_start:")
+        self.emit("main:")
         self.emit("    pushq %rbp") # save the previous stack frame pointer
         self.emit("    movq %rsp, %rbp") # load the current frame pointer
+        
         # save callee-saved registers if need be
+        self.emit("    pushq %rbx")
+        self.emit("    pushq %r10")
+        self.emit("    pushq %r12")
+        self.emit("    pushq %r13")
+        self.emit("    pushq %r14")
+        self.emit("    pushq %r15")
+
 
         self._compile_Program(self.ast)
 
-        # exit program
-        # restore resigster states if need be
-        self.emit("    movq $60, %rax")  # syscall number for sys_exit
-        self.emit("    xorq %rdi, %rdi") # exit code 0
-        self.emit("    syscall")
-        self.emit("")        
+        self.emit(".main_exit:")
+        # PRINT THE RESULT (Windows x64 Calling Convention)
+        self.emit("    # Print the final result (Windows ABI)")
+        self.emit("    movq %rax, %rdx")             # 2nd Argument: The number to print
+        self.emit("    leaq format_int(%rip), %rcx") # 1st Argument: The string format
+        
+        # Windows REQUIRES 32 bytes of "shadow space" on the stack before calling C functions.
+        self.emit("    subq $32, %rsp")
+        self.emit("    call printf")
+
+        # restore callee-saved registers (reverse order of pushes)
+        self.emit("    addq $32, %rsp")
+        self.emit("    popq %r15")
+        self.emit("    popq %r14")
+        self.emit("    popq %r13")
+        self.emit("    popq %r12")
+        self.emit("    popq %r10")
+        self.emit("    popq %rbx")
+
+        # exit program returning 0 from main
+        self.emit("    movq $0, %rax")
+        self.emit("    movq %rbp, %rsp")
+        self.emit("    popq %rbp")
+        self.emit("    ret")
+        self.emit("\n")
+
+        output = "\n".join(self.data_section) + "\n"
+        output += "\n".join(self.bss_section) + "\n"
+        output += "\n".join(self.text_section) + "\n"
+        return output
 
     def generate_assembly_file(self, filename: str | Path = "output.s") -> None:
         """Writes the assembly instruction to the file with given name or path."""
@@ -234,18 +99,20 @@ class CodeGenerator:
         path = Path(filename)
         path.parent.mkdir(parents=True, exist_ok=True)
         
-        asm = self.generate_assembly()
+        asm = self.generate_assembly_str()
         path.write_text(asm, encoding="utf-8")
 
     
     # === Helper methods ===
     
-    def emit(self, instruction: str, section: Literal["text", "data"]="text"):
+    def emit(self, instruction: str, section: Literal["text", "data", "bss"]="text"):
         """
         Appends the given instructions to the assembly program's specified section.
         """
         if section == "data":
             self.data_section.append(instruction)
+        elif section == "bss":
+            self.bss_section.append(instruction)
         else:
             self.text_section.append(instruction)
 
@@ -270,4 +137,40 @@ class CodeGenerator:
             self.emit(f".L_line_{line_number}:")
             self.compile_node(statement)
 
-    
+    def _compile_IntegerLiteral(self, node: IntegerLiteral):
+        # Base case: An integer simply moves its value into the accumulator
+        self.emit(f"    movq ${node.value}, %rax")
+
+    def _compile_Identifier(self, node: Identifier):
+        # Base case: A variable moves its stored value into the accumulator
+        loc = self.variable_allocation[node.value]
+        self.emit(f"    movq {loc}, %rax")
+
+    def _compile_LetStatement(self, node: LetStatement):
+        self.compile_node(node.value)
+        destination = self.variable_allocation[node.name.value]
+        self.emit(f"    movq %rax, {destination}")
+
+    def _compile_InfixExpression(self, node: InfixExpression):
+        self.compile_node(node.left)
+        self.emit("    pushq %rax")
+        self.stack_offset -= 8
+        self.compile_node(node.right)
+        self.emit("    movq %rax, %rdx")
+        self.emit("    popq %rax")
+        self.stack_offset -= 8
+
+        # left = %rax;  right = %rdx
+        # instruction source, destination
+        if node.operator == "+":
+            self.emit("    addq %rdx, %rax")
+        elif node.operator == "-":
+            self.emit("    subq %rdx, %rax")
+        elif node.operator == "*":
+            self.emit("    imulq %rdx, %rax")
+        elif node.operator == "/":
+            # The divisor is currently in %rdx. 
+            # idivq requires the dividend to be in %rdx:%rax
+            self.emit("    movq %rdx, %r15")
+            self.emit("    cqto")           # Sign-extend %rax into %rdx:%rax
+            self.emit("    idivq %r15")     # Divides %rdx:%rax by %r15. Quotient goes to %rax

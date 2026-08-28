@@ -1,60 +1,83 @@
 from src.ast_nodes import *
 
-
-def print_ast(node: ASTNode, indent=0):
-    space = " " * indent
-
+def print_ast(node: ASTNode, prefix="", is_last=True, is_root=True, custom_label=None):
+    if is_root:
+        marker = ""
+    else:
+        marker = "└── " if is_last else "├── "
+        
+    # Determine the label for the current node
     if isinstance(node, Program):
-        for statement in node.statements:
-            print_ast(statement, indent)
+        label = "Program"
     elif isinstance(node, LetStatement):
-        print(
-            space + f"Let {node.name.value}"
-        )
-        print_ast(node.value, indent + 2)
+        label = f"Let ({node.name.value})"
     elif isinstance(node, ReturnStatement):
-        print(space + "Return")
-        print_ast(node.value, indent + 2)
+        label = "Return"
     elif isinstance(node, ExpressionStatement):
-        print_ast(node.expression, indent)
+        label = "ExpressionStatement"
     elif isinstance(node, Identifier):
-        print(
-            space + f"Identifier({node.value})"
-        )
+        label = f"Identifier({node.value})"
     elif isinstance(node, IntegerLiteral):
-        print(
-            space + f"Integer({node.value})"
-        )
+        label = f"Integer({node.value})"
+    elif isinstance(node, FloatLiteral):
+        label = f"Float({node.value})"
+    elif isinstance(node, StringLiteral):
+        label = f"String('{node.value}')"
+    elif isinstance(node, BooleanLiteral):
+        label = f"Boolean({node.value})"
     elif isinstance(node, PrefixExpression):
-        print(
-            space + f"Prefix({node.operator})"
-        )
-        print_ast(node.right, indent + 2)
+        label = f"Prefix({node.operator})"
     elif isinstance(node, InfixExpression):
-        print(
-            space + f"Infix({node.operator})"
-        )
-        print_ast(node.left, indent + 2)
-        print_ast(node.right, indent + 2)
+        label = f"Infix({node.operator})"
     elif isinstance(node, FunctionLiteral):
-        print(space + "Function")
-
-        print(space + "  Parameters:")
-        for parameter in node.parameters:
-            print_ast(parameter, indent + 4)
-
-        print(space + "  Body:")
-        print_ast(node.body, indent + 4)
+        label = "Function"
     elif isinstance(node, CallExpression):
-        print(space + "Call")
-
-        print(space + "  Function:")
-        print_ast(node.function, indent + 4)
-
-        print(space + "  Arguments:")
-        for argument in node.arguments:
-            print_ast(argument, indent + 4)
+        label = "Call"
     elif isinstance(node, BlockStatement):
-        print(space + "Block")
-        for statement in node.statements:
-            print_ast(statement, indent + 2)
+        label = "Block"
+    else:
+        label = f"Unknown({type(node).__name__})"
+
+    # Prepend any custom prefix (like "Line 10: ") to the node label
+    if custom_label:
+        label = f"{custom_label} {label}"
+
+    # Print the current node!
+    print(f"{prefix}{marker}{label}")
+    
+    # Calculate the indentation prefix for children
+    child_prefix = prefix + ("    " if is_last else "|   ") if not is_root else ""
+
+    # Gather all children of this node in order
+    children = []
+    
+    if isinstance(node, Program):
+        for line_number, statement in node.statements.items():
+            children.append((statement, f"Line {line_number}:"))
+    elif isinstance(node, LetStatement):
+        children.append((node.value, None))
+    elif isinstance(node, ReturnStatement):
+        children.append((node.value, None))
+    elif isinstance(node, ExpressionStatement):
+        children.append((node.expression, None))
+    elif isinstance(node, PrefixExpression):
+        children.append((node.right, None))
+    elif isinstance(node, InfixExpression):
+        children.append((node.left, None))
+        children.append((node.right, None))
+    elif isinstance(node, FunctionLiteral):
+        for param in node.parameters:
+            children.append((param, "Param:"))
+        children.append((node.body, "Body:"))
+    elif isinstance(node, CallExpression):
+        children.append((node.function, "Function:"))
+        for arg in node.arguments:
+            children.append((arg, "Arg:"))
+    elif isinstance(node, BlockStatement):
+        for stmt in node.statements:
+            children.append((stmt, None))
+
+    # Recursively print all gathered children
+    for i, (child, c_label) in enumerate(children):
+        is_last_child = (i == len(children) - 1)
+        print_ast(child, child_prefix, is_last_child, False, c_label)

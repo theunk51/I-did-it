@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Iterator
-from .tokens import TokenType, Token
+from src.tokens import TokenType, Token
 
 class Lexer:
     """
