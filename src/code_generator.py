@@ -138,11 +138,11 @@ class CodeGenerator:
             self.compile_node(statement)
 
     def _compile_IntegerLiteral(self, node: IntegerLiteral):
-        # Base case: An integer simply moves its value into the accumulator
+        # an integer moves its value into the accumulator
         self.emit(f"    movq ${node.value}, %rax")
 
     def _compile_Identifier(self, node: Identifier):
-        # Base case: A variable moves its stored value into the accumulator
+        # variable moves its stored value into the accumulator
         loc = self.variable_allocation[node.value]
         self.emit(f"    movq {loc}, %rax")
 
