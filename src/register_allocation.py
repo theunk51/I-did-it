@@ -3,7 +3,7 @@ from collections import deque
 from bisect import insort
 
 from src.ast_nodes import *
-
+from src.abi_specification import ABISpecification
 
 __all__ = ['RegisterAllocator']
 
@@ -39,8 +39,6 @@ class RegisterAllocator:
     Variables will only have one location for its entire lifetime.
     """
 
-    __SPILL_TEMPLATE = "%s_bss(%rip)"
-
     def __init__(self, program: Program):
         self.program = program
 
@@ -49,10 +47,7 @@ class RegisterAllocator:
         self.current_line = 0
         
         # State for Pass 2 (Allocation)
-        self.free_registers = deque([
-            '%r8', '%r9', '%r10', '%r11', '%r12', '%r13', 
-            '%r14', '%rbx', '%rcx', '%rsi', '%rdi'
-        ])
+        self.free_registers  = deque(ABISpecification.allocatable_registers)
         self.active_lifespans: list[Lifespan] = []
         self.allocation_map: dict[str, str] = {}
 
@@ -112,6 +107,8 @@ class RegisterAllocator:
         # so we don't need to do anything when we hit them.
 
     def compute_register_allocation(self):
+        generate_bss_name = lambda x: f"{x}_bss(%rip)"
+
         sorted_lifespans = sorted(self.variable_lifespans.values(), key=lambda x: x.start)
         for current_lifespan in sorted_lifespans:
             # Expire old variables: if another allocated variable dies before the current variable starts,
@@ -133,12 +130,12 @@ class RegisterAllocator:
                     # the allocated variable lives longer, so we can steal its register. The kicked
                     # variable is stored in the .bss section.
                     register = self.allocation_map[longest_lifespan.name]
-                    self.allocation_map[longest_lifespan.name] = self.__SPILL_TEMPLATE % longest_lifespan.name
+                    self.allocation_map[longest_lifespan.name] = generate_bss_name(longest_lifespan.name)
                     self.allocation_map[current_lifespan.name] = register
                     self.active_lifespans.pop(-1)
                     insort(self.active_lifespans, current_lifespan, key=lambda x: x.end)
                 else:
                     # the current variable lives the longest so far, so spill into BSS
-                    self.allocation_map[current_lifespan.name] =  self.__SPILL_TEMPLATE % current_lifespan.name
+                    self.allocation_map[current_lifespan.name] = generate_bss_name(current_lifespan.name)
         
         

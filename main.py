@@ -6,7 +6,8 @@ from src.parser import Parser
 from src.debug import print_ast
 from src.code_generator import CodeGenerator
 
-def compile_and_run_assembly(asm_file: Path):
+
+def assemble_and_run(asm_file: Path):
     """Uses GCC to assemble/link the file, then executes it."""
     # On Windows, executables end in .exe. (On Linux/WSL, we can just omit it)
     exe_file = asm_file.with_suffix(".exe")
@@ -15,7 +16,7 @@ def compile_and_run_assembly(asm_file: Path):
     try:
         # Assemble & Link
         gcc_result = subprocess.run(
-            ["gcc", str(asm_file), "-o", str(exe_file)], 
+            ["gcc", "-g", str(asm_file), "-o", str(exe_file)], 
             capture_output=True, text=True
         )
         if gcc_result.returncode != 0:
@@ -48,6 +49,7 @@ def main():
     parser.add_argument("-r", "--run", help="Compile the assembly with GCC and run it immediately", action="store_true")
     
     args = parser.parse_args()
+    print(args)
     file_path = Path(args.file)
 
     if not file_path.exists():
@@ -57,25 +59,26 @@ def main():
     # If the user passed an assembly file directly, skip BASIC parsing!
     if file_path.suffix == '.s':
         if args.run:
-            compile_and_run_assembly(file_path)
+            assemble_and_run(file_path)
         else:
             print(f"File '{file_path}' is already assembly. Use the -r flag to run it!")
         return
 
-    source_code = file_path.read_text(encoding="utf-8")
     print(f"Parsing '{file_path}'...")
+    source_code = file_path.read_text(encoding="utf-8")
     ast = Parser(source_code).parse_program()
     out_path = Path(args.output)
     print(f"Generating assembly to '{out_path}'...")
     cg = CodeGenerator(ast)
     cg.generate_assembly_file(out_path)
+
     print(cg.variable_allocation)
     print("Success!")
 
     # 4. Run it if requested
     if args.run:
         print("") # blank line for spacing
-        compile_and_run_assembly(out_path)
+        assemble_and_run(out_path)
 
 if __name__ == "__main__":
     main()
