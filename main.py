@@ -49,7 +49,6 @@ def main():
     parser.add_argument("-r", "--run", help="Compile the assembly with GCC and run it immediately", action="store_true")
     
     args = parser.parse_args()
-    print(args)
     file_path = Path(args.file)
 
     if not file_path.exists():

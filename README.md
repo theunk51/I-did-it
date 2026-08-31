@@ -32,6 +32,7 @@ Summary for your Compiler
 - RAX is the accumulator variable, so all expression values will be stored there
 - if possible, look into how gaps in variable lifespans can be handled
 - The way the label counter works is by storing a dict mapping of (label_type: count).
+- the stack really only has to be aligned whenever a C function call is made. It is just easier to keep the stack aligned at all times.
 
 # To-Do
 ### 📦 1. Program Structure & Statements

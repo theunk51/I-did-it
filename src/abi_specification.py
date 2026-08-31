@@ -101,6 +101,6 @@ class Windows_x86_64(_ABISpecification):
 
 
 if platform.system() == "Windows":
-    ABISpecification = Windows_x86_64
+    ABISpecification = Windows_x86_64()
 else:
-    ABISpecification = SystemV_x86_64
+    ABISpecification = SystemV_x86_64()

@@ -1,5 +1,3 @@
-
-
 from pathlib import Path
 from typing import Literal
 
@@ -28,9 +26,7 @@ class CodeGenerator:
         self.label_counter = {}
         self.global_variables = {}
         self.stack_offset = 0
-        self.temporary_registers = ["%rax", "%rdx", "%r15"]
-        self.abi = ABI.get_abi()
-
+        self.temporary_registers = ABI.compiler_scratch_regs
 
     def generate_assembly_str(self) -> str:
         """
@@ -53,30 +49,31 @@ class CodeGenerator:
         self.emit("main:")
         self.emit("    pushq %rbp") # save the previous stack frame pointer
         self.emit("    movq %rsp, %rbp") # load the current frame pointer
-        self.stack_offset -= 8
-
+        
         # save callee-saved registers if need be
         for reg in ABI.pushable_callee_saved_regs:
             self.emit(f"    pushq {reg}")
             self.stack_offset -= 8
+        # padding = self._calculate_stack_padding(0)
+        # if padding > 0:
+        #     self.emit(f"    subq ${padding}, %rsp")
 
         self._compile_Program(self.ast)
-        self.emit_debug_dump()
 
         self.emit(".main_exit:")
-
-        # PRINT THE RESULT
         self.emit_C_call("printf", [
             ("leaq", "format_int(%rip)"), # 1st Argument: The string format
             ("movq", "%rax")              # 2nd Argument: The number to print
         ])
 
         # restore callee-saved registers
+        # if padding > 0:
+        #     self.emit(f"    addq ${padding}, %rsp")
         for reg in reversed(ABI.pushable_callee_saved_regs):
             self.emit(f"    popq {reg}")
             self.stack_offset += 8
 
-        # exit program returning 0 from main
+        # exit program, returning 0 from main
         self.emit("    movq $0, %rax")
         self.emit("    movq %rbp, %rsp")
         self.emit("    popq %rbp")
@@ -99,6 +96,7 @@ class CodeGenerator:
 
     
     # === Helper methods ===
+
     def get_new_label(self, _type: str):
         """Creates a new label for the given situtation using an interal counter."""
         if _type not in self.label_counter:
@@ -125,12 +123,12 @@ class CodeGenerator:
         inst_args is an optional list of (instruction, source_operand).
         Example: emit_C_call("printf", [("leaq", "hello_world_str(%rip)"), ("movq", "%rax")])
         """
-        self.emit(f"\n    # --- CALL C FUNCTION: {func_name} ---")
-        # Only backup caller-saved regs that RegisterAllocator is actually allowed to use.
-        regs_to_save = [reg for reg in self.abi.caller_saved_regs 
-                        if reg in self.abi.allocatable_registers]
+        self.emit(f"    # --- CALL C FUNCTION: {func_name} ---")
+        # only backup caller-saved regs that RegisterAllocator is actually allowed to use.
+        regs_to_save = [reg for reg in ABI.caller_saved_regs 
+                        if reg in ABI.allocatable_registers]
         for reg in regs_to_save:
-            self.emit(f"  pushq {reg}")
+            self.emit(f"    pushq {reg}")
             self.stack_offset -= 8
         
 
@@ -138,7 +136,7 @@ class CodeGenerator:
             # what about variables assigned to registers?
             num_abi_args = len(ABI.argument_regs)
             num_spilled_args = max(0, len(inst_args) - num_abi_args)
-            stack_allocation = self.abi.shadow_space_size + num_spilled_args * 8
+            stack_allocation = ABI.shadow_space_size + num_spilled_args * 8
             stack_allocation += self._calculate_stack_padding(stack_allocation)
 
             if stack_allocation > 0:
@@ -148,10 +146,10 @@ class CodeGenerator:
             if num_spilled_args > 0:
                 offset = ABI.shadow_space_size
                 for i, (inst, src) in enumerate(inst_args[num_abi_args:]):
-                    # prevent illegal Memory-to-Memory moves for stack arguments
+                    # prevent illegal memory-to-memory moves for stack arguments
                     if "bss" in src or "(%rip)" in src:
-                        self.emit(f"    {inst} {src}, %r15")  # Move to scratch
-                        self.emit(f"    movq %r15, {offset}(%rsp)") # Move to stack
+                        self.emit(f"    {inst} {src}, %r15")  # move to scratch
+                        self.emit(f"    movq %r15, {offset}(%rsp)") # move to stack
                     else:
                         self.emit(f"    {inst} {src}, {offset}(%rsp)")
                     offset += 8
@@ -172,57 +170,15 @@ class CodeGenerator:
 
             self.emit(f"    # --- End Call {func_name} ---\n")
 
-    def emit_debug_dump(self):
-        """Emits assembly to print all allocated variables and their current values at runtime."""
+    def emit_trace_variable(self, variable_name: str, location: str):
+        """Prints a message every time a specific variable's value changes."""
+        fmt_label = f"trace_fmt_{variable_name}"
+        self.emit(f'{fmt_label}: .string "[TRACE] {variable_name} updated to %d\\n"', section="data")
         
-        self.emit("debug_fmt: .string \"DEBUG Variable %s (%s) = %d\\n\"", section="data")
-    
-        self.emit(".L_debug_state_dump:")
-        all_used_registers = [
-            '%r8', '%r9', '%r10', '%r11', '%r12', '%r13', '%r14', '%r15', 
-            '%rax', '%rbx', '%rcx', '%rsi', '%rdi', '%rdx'
-        ]
-        should_align_stack = len(all_used_registers) % 2 != 0
-        for reg in all_used_registers:
-            self.emit(f"    pushq {reg}")
-        if should_align_stack:
-            self.emit(f"    subq $8, %rsp")
-
-
-        for variable, location in self.variable_allocation.items():
-            self.emit(f"var_name_{variable}: .string \"{variable}\"", section="data")
-            self.emit(f"var_loc_{variable}: .string \"{location}\"", section="data")
-            
-            # Windows printf ABI: 
-            # 1st arg (%rcx) = format string, 
-            # 2nd arg (%rdx) = var name, 
-            # 3rd arg (%r8) = var location
-            # 4th arg (%r9) = value
-            self.emit("    leaq debug_fmt(%rip), %rcx")
-            self.emit(f"    leaq var_name_{variable}(%rip), %rdx")
-            self.emit(f"    leaq var_loc_{variable}(%rip), %r8")
-            
-            
-            if "bss" in location:
-                self.emit(f"    movq {location}, %r9") # Load from memory
-            else:
-                # If it's a register (e.g. %r8), it was pushed to the stack.
-                # Do not read the register directly because printf might have destryed it. 
-                reg_index = all_used_registers.index(location)
-                stack_offset = (len(all_used_registers) - 1 - reg_index) * 8
-                self.emit(f"    movq {stack_offset}(%rsp), %r9")
-        
-            # Allocate 32 bytes shadow space, call printf, clean up shadow space
-            self.emit("    subq $32, %rsp")
-            self.emit("    call printf")
-            self.emit("    addq $32, %rsp")
-
-        if should_align_stack:
-            self.emit(f"    subq $8, %rsp")
-        for reg in reversed(all_used_registers):
-            self.emit(f"    popq {reg}")
-            
-        self.emit("# --- END DEBUG DUMP ---\n")
+        self.emit_C_call("printf", [
+            ("leaq", f"{fmt_label}(%rip)"), # Arg 1: The format string
+            ("movq", location)              # Arg 2: The variable's location
+        ])
     
     def error(self, message: str):
         raise Exception(f"Compiler Error at '{self.current_line_number}': {message}")
@@ -270,85 +226,7 @@ class CodeGenerator:
         self.compile_node(node.value)
         destination = self.variable_allocation[node.name.value]
         self.emit(f"    movq %rax, {destination}")
-        
-        # Optionally trace the variable change!
         # self.emit_trace_variable(node.name.value, destination)
-
-    def emit_trace_variable(self, variable_name: str, location: str):
-        """Prints a message every time a specific variable's value changes."""
-        self.emit(f"\n    # --- TRACE: {variable_name} ---")
-        self.emit(f"trace_fmt_{variable_name}: .string \"[TRACE] {variable_name} updated to %d\\n\"", section="data")
-        
-        # Save volatile registers
-        volatile_regs = ['%rax', '%rcx', '%rdx', '%r8', '%r9', '%r10', '%r11']
-        for reg in volatile_regs:
-            self.emit(f"    pushq {reg}")
-            
-        # Align stack to 16 bytes. We pushed 7 registers (56 bytes), so we need 8 more bytes.
-        self.emit("    subq $8, %rsp")
-        
-        self.emit(f"    leaq trace_fmt_{variable_name}(%rip), %rcx")
-        
-        # Read the value from memory or stack
-        if "bss" in location:
-            self.emit(f"    movq {location}, %rdx")
-        else:
-            if location in volatile_regs:
-                # Calculate where we pushed it on the stack (account for the 8 bytes we just subtracted)
-                reg_index = volatile_regs.index(location)
-                stack_offset = ((len(volatile_regs) - 1 - reg_index) * 8) + 8
-                self.emit(f"    movq {stack_offset}(%rsp), %rdx")
-            else:
-                # It's a callee-saved register, so printf won't destroy it and we didn't push it
-                self.emit(f"    movq {location}, %rdx")
-                
-        # 32 bytes shadow space
-        self.emit("    subq $32, %rsp")
-        self.emit("    call printf")
-        self.emit("    addq $32, %rsp")
-        
-        self.emit("    addq $8, %rsp")
-        for reg in reversed(volatile_regs):
-            self.emit(f"    popq {reg}")
-        self.emit("    # --- END TRACE ---\n")
-
-    def emit_dump_all_registers(self):
-        """Prints the raw integer value of every single physical CPU register."""
-        self.emit("\n    # --- DUMP ALL PHYSICAL REGISTERS ---")
-        
-        # All standard general-purpose registers
-        physical_regs = [
-            '%rax', '%rbx', '%rcx', '%rdx', '%rsi', '%rdi',
-            '%r8', '%r9', '%r10', '%r11', '%r12', '%r13', '%r14', '%r15'
-        ]
-        
-        # Push them ALL to the stack to preserve them
-        for reg in physical_regs:
-            self.emit(f"    pushq {reg}")
-            
-        # 14 registers = 112 bytes. 112 is a multiple of 16, so the stack is perfectly aligned!
-        self.emit("reg_dump_fmt: .string \"[CPU] %s = %d\\n\"", section="data")
-        
-        for i, reg in enumerate(physical_regs):
-            reg_name = reg.strip('%')
-            self.emit(f"reg_name_str_{reg_name}: .string \"{reg}\"", section="data")
-            
-            self.emit("    leaq reg_dump_fmt(%rip), %rcx")
-            self.emit(f"    leaq reg_name_str_{reg_name}(%rip), %rdx")
-            
-            # Read from the stack backup!
-            stack_offset = (len(physical_regs) - 1 - i) * 8
-            self.emit(f"    movq {stack_offset}(%rsp), %r8")
-            
-            self.emit("    subq $32, %rsp")
-            self.emit("    call printf")
-            self.emit("    addq $32, %rsp")
-            
-        # Pop them all back
-        for reg in reversed(physical_regs):
-            self.emit(f"    popq {reg}")
-            
-        self.emit("    # --- END DUMP ---\n")
 
     def _compile_InfixExpression(self, node: InfixExpression):
         self.compile_node(node.left)
