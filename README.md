@@ -13,6 +13,25 @@ python -m pytest --cov=src --cov-report=term-missing tst/
 1. https://archive.org/details/bitsavers_dartmouthB_3679804/page/n37/mode/2up
 1. [Beginner's Guide to BASIC](https://programming.muthu.co/posts/beginners-guide-to-basic/#google_vignette)
 1. https://pdubroy.github.io/200andchange/precedence-climbing/
+1. https://bernsteinbear.com/blog/linear-scan/
+    - https://dl.acm.org/doi/epdf/10.1145/330249.330250
+1. https://web.stanford.edu/class/cs143/
+    - https://medium.com/@pasi_pyrro/how-to-write-your-own-c-compiler-from-scratch-with-python-90ab84ffe071
+    - https://github.com/Hyper5phere/simple-c-compiler/blob/master/modules/code_gen.py
+1. https://www.sra.uni-hannover.de/Lehre/SS25/V_BSB/doc/x86-abi.html
+1. http://cs.cornell.edu/courses/cs4120/2022sp/project/abi.pdf
+1. http://www.agner.org/optimize/calling_conventions.pdf
+1. https://github.com/simon-whitehead/assembly-fun/blob/master/windows-x64/README.md
+
+# Notes
+Summary for your Compiler
+.data: Use it if you ever add Strings to your language (e.g., let msg = "Error!"), because the text "Error!" must be saved in the file.
+
+.bss: Use it for all spilled variables, because they just need empty RAM slots reserved for when the CPU runs out of registers during math operations.
+
+- RAX is the accumulator variable, so all expression values will be stored there
+- if possible, look into how gaps in variable lifespans can be handled
+- The way the label counter works is by storing a dict mapping of (label_type: count).
 
 # To-Do
 ### 📦 1. Program Structure & Statements

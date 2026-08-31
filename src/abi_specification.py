@@ -21,19 +21,15 @@ class _ABISpecification(ABC):
 
     @property
     @abstractmethod
-    def caller_save_regs(self) -> List[str]: pass
+    def caller_saved_regs(self) -> List[str]: pass
 
     @property
     @abstractmethod
-    def callee_save_regs(self) -> List[str]: pass
+    def callee_saved_regs(self) -> List[str]: pass
 
     @property
     @abstractmethod
     def argument_regs(self) -> List[str]: pass
-
-    @property
-    @abstractmethod
-    def scratch_regs(self) -> List[str]: pass
 
     @property
     @abstractmethod
@@ -51,13 +47,20 @@ class _ABISpecification(ABC):
         return 16
 
     @property
-    def scratch_regs(self) -> List[str]: 
+    def compiler_scratch_regs(self) -> List[str]: 
         """
         Registers reserved by the compiler for expression evaluation and memory moves.
         Never given to the Register Allocator.
         """
         return ["%rax", "%rdx", "%r15"]
 
+    @property
+    def pushable_callee_saved_regs(self) -> List[str]:
+        """
+        Returns all callee-saved registers EXCLUDING the stack frame 
+        registers (%rbp, %rsp) so the CodeGenerator can blindly loop over them.
+        """
+        return [reg for reg in self.callee_saved_regs if reg not in ('%rbp', '%rsp')]
 
 class SystemV_x86_64(_ABISpecification):
     """ABI specification for Linux and macOS on x86_64 hardware (AT&T syntax)."""
@@ -69,12 +72,12 @@ class SystemV_x86_64(_ABISpecification):
     
     allocatable_registers = ["%rbx", "%rcx", "%rsi", "%rdi", 
                              "%r8", "%r9", "%r10", "%r11", "%r12", "%r13", "%r14"]
-    caller_save_regs = ["%rax", "%rcx", "%rdx", "%rsi", "%rdi", "%r8", "%r9", "%r10", "%r11"]
-    callee_save_regs = ["%rbx", "%rsp", "%rbp", "%r12", "%r13", "%r14", "%r15"]
+    caller_saved_regs = ["%rax", "%rcx", "%rdx", "%rsi", "%rdi", "%r8", "%r9", "%r10", "%r11"]
+    callee_saved_regs = ["%rbx", "%rsp", "%rbp", "%r12", "%r13", "%r14", "%r15"]
     argument_regs = ["%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"]
     
     # Linux Temp/Scratch: %r10 and %r11 are the cleanest pure-scratch choices.
-    # %rax (return value), %rdx (mul/div auxiliary), and arguments are caller-save 
+    # %rax (return value), %rdx (mul/div auxiliary), and arguments are caller-saved 
     # but have secondary structural restrictions.
     return_reg = "%rax"
     shadow_space_size = 0
@@ -87,8 +90,8 @@ class Windows_x86_64(_ABISpecification):
     all_registers = SystemV_x86_64.all_registers
     allocatable_registers = SystemV_x86_64.allocatable_registers
     
-    caller_save_regs = ["%rax", "%rcx", "%rdx", "%r8", "%r9", "%r10", "%r11"]
-    callee_save_regs = ["%rbx", "%rsp", "%rbp", "%rsi", "%rdi", "%r12", "%r13", "%r14", "%r15"]
+    caller_saved_regs = ["%rax", "%rcx", "%rdx", "%r8", "%r9", "%r10", "%r11"]
+    callee_saved_regs = ["%rbp", "%rbx", "%rsp", "%rsi", "%rdi", "%r12", "%r13", "%r14", "%r15"]
     
     argument_regs = ["%rcx", "%rdx", "%r8", "%r9"]
     return_reg = "%rax"
