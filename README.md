@@ -41,6 +41,7 @@ python -m pytest --cov=src --cov-report=term-missing tst/
 - The way the label counter works is by storing a dict mapping of (label_type: count).
 - the stack really only has to be aligned whenever a C function call is made. It is just easier to keep the stack aligned at all times.
 - From the 1968 Basic Manual: "that spaces have no significance in BASIC, except in messages which are to be printed out, as in line number 65 above. Thus, spaces may be used, or not used, at will to "pretty up" a program and make it more readable. Statement 10 could have been typed as 10READA,B,D,E and statement 15 as 15LETG=A\*E-B\*D."
+- Builtin types act as identifiers when parsing so that the infix expression for LParen works. It does mean that the builtin types are coupled in the AST and need to be decoupled in the code generator.
 
 # To-Do
 ### 📦 1. Program Structure & Statements

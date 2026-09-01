@@ -119,3 +119,52 @@ def test_grouping_parentheses():
     assert ast.left.operator == "+"
     assert ast.left.left.value == 1
     assert ast.left.right.value == 2
+
+
+def test_print_statement():
+    parser = Parser('PRINT A, B; "HELLO"')
+    ast = parser.parse_statement()
+    
+    assert isinstance(ast, PrintStatement)
+    assert len(ast.items) == 5
+    
+    assert isinstance(ast.items[0], Identifier)
+    assert ast.items[0].value == "A"
+    assert ast.items[1] == ","
+    assert isinstance(ast.items[2], Identifier)
+    assert ast.items[2].value == "B"
+    assert ast.items[3] == ";"
+    assert isinstance(ast.items[4], StringLiteral)
+    assert ast.items[4].value == "HELLO"
+
+
+def test_function_call_no_args():
+    ast = parse_expr("RND()")
+    assert isinstance(ast, CallExpression)
+    assert isinstance(ast.name, Identifier)
+    assert ast.name.value == "RND"
+    assert len(ast.arguments) == 0
+
+def test_function_call_one_arg():
+    ast = parse_expr("TAB(5)")
+    assert isinstance(ast, CallExpression)
+    assert isinstance(ast.name, Identifier)
+    assert ast.name.value == "TAB"
+    assert len(ast.arguments) == 1
+    assert isinstance(ast.arguments[0], IntegerLiteral)
+    assert ast.arguments[0].value == 5
+
+def test_function_call_multiple_args():
+    ast = parse_expr("MYFUNC(A, 2 + 3)")
+    assert isinstance(ast, CallExpression)
+    assert isinstance(ast.name, Identifier)
+    assert ast.name.value == "MYFUNC"
+    assert len(ast.arguments) == 2
+    
+    assert isinstance(ast.arguments[0], Identifier)
+    assert ast.arguments[0].value == "A"
+    
+    assert isinstance(ast.arguments[1], InfixExpression)
+    assert ast.arguments[1].operator == "+"
+    assert ast.arguments[1].left.value == 2
+    assert ast.arguments[1].right.value == 3

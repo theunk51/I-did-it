@@ -164,10 +164,7 @@ class Parser:
             return BooleanLiteral(token.value.upper() == 'TRUE')
 
     def parse_identifier(self):
-        if self.current_token.type in BUILTIN_FUNCTIONS:
-            self.consume(BUILTIN_FUNCTIONS)
-        else:
-            self.consume(TokenType.IDENTIFIER)
+        self.consume(TokenType.IDENTIFIER, *BUILTIN_FUNCTIONS)
         return Identifier(self.previous_token.value)
 
     def parse_call_expression(self, left):
@@ -180,7 +177,7 @@ class Parser:
                 arguments.append(self.parse_expression(Precedence.NONE))
         self.consume(TokenType.RPAREN)
 
-        return CallExpression(function=left, arguments=arguments)
+        return CallExpression(name=left, arguments=arguments)
 
 
     __PARSING_RULES = {
