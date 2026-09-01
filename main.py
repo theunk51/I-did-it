@@ -16,7 +16,7 @@ def assemble_and_run(asm_file: Path):
     try:
         # Assemble & Link
         gcc_result = subprocess.run(
-            ["gcc", "-g", str(asm_file), "-o", str(exe_file)], 
+            ["gcc", "-g", str(asm_file), "runtime.c", "-o", str(exe_file)], 
             capture_output=True, text=True
         )
         if gcc_result.returncode != 0:
