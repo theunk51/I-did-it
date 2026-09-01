@@ -29,7 +29,7 @@ def print_ast(node: ASTNode, prefix="", is_last=True, is_root=True, custom_label
         label = f"Prefix({node.operator})"
     elif isinstance(node, InfixExpression):
         label = f"Infix({node.operator})"
-    elif isinstance(node, FunctionLiteral):
+    elif isinstance(node, FunctionDeclaration):
         label = "Function"
     elif isinstance(node, CallExpression):
         label = "Call"

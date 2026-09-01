@@ -164,7 +164,7 @@ class Parser:
             return BooleanLiteral(token.value.upper() == 'TRUE')
 
     def parse_identifier(self):
-        if self.current_token in BUILTIN_FUNCTIONS:
+        if self.current_token.type in BUILTIN_FUNCTIONS:
             self.consume(BUILTIN_FUNCTIONS)
         else:
             self.consume(TokenType.IDENTIFIER)

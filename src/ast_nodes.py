@@ -10,6 +10,9 @@ class Expression(ASTNode):
 class Statement(ASTNode):
     pass
 
+class Declaration(ASTNode):
+    pass
+
 @dataclass
 class Program(ASTNode):
     statements: Dict[int, Statement] = field(default_factory=dict) # Keyed by line number
@@ -46,15 +49,16 @@ class InfixExpression(Expression):
     right: Expression
 
 @dataclass
-class FunctionLiteral(Expression):
+class CallExpression(Expression):
+    name: Identifier
+    arguments: List[Expression]
+
+@dataclass
+class FunctionDeclaration(Declaration):
     name: str
     parameters: List[Identifier]
     body: Statement
 
-@dataclass
-class CallExpression(Expression):
-    function: Expression
-    arguments: List[Expression]
 
 @dataclass
 class LetStatement(Statement):
