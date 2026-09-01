@@ -22,7 +22,7 @@ class Compiler:
 
     def compile(self, node: ASTNode):
         """Dynamically dispatch to the correct compilation method."""
-        method_name = f'compile_{type(node).__name__}'
+        method_name = f'__compile_{type(node).__name__}'
         compiler_method = getattr(self, method_name, self.no_compile_method)
         return compiler_method(node)
 
@@ -47,9 +47,8 @@ class Compiler:
         self.emit(".global _start")
         self.emit(".text")
         self.emit("_start:")
-        
-        self.emit("    pushq %rbp")
-        self.emit("    movq %rsp, %rbp")
+        self.emit("    pushq %rbp") # save the previous stack frame pointer
+        self.emit("    movq %rsp, %rbp") # load the current frame pointer
 
         self.compile(self.ast)
 
@@ -73,18 +72,17 @@ class Compiler:
                 out += f"    .lcomm global_{g}, 8\n"
             
         return out
-
-
-    def compile_Program(self, node: Program):
+    
+    def __compile_Program(self, node: Program):
         for line_number, statement in sorted(node.statements.items()):
             self.current_lineno = line_number
             self.emit(f".L_line_{line_number}:")
             self.compile(statement)
 
-    def compile_IntegerLiteral(self, node: IntegerLiteral):
+    def __compile_IntegerLiteral(self, node: IntegerLiteral):
         self.emit(f"    pushq ${node.value}")
 
-    def compile_FloatLiteral(self, node: FloatLiteral):
+    def __compile_FloatLiteral(self, node: FloatLiteral):
         self._float_counter += 1
         label = f".L_float_{self._float_counter}"
         self.data_section.append(f"{label}: .double {node.value}")
@@ -93,7 +91,7 @@ class Compiler:
         self.emit( "    subq $8, %rsp")
         self.emit( "    movsd %xmm0, (%rsp)")
 
-    def compile_InfixExpression(self, node: InfixExpression):
+    def __compile_InfixExpression(self, node: InfixExpression):
         node_type = self._infer_type(node)
         left_type = self._infer_type(node.left)
         right_type = self._infer_type(node.right)

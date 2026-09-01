@@ -117,7 +117,7 @@ class CodeGenerator:
         else:
             self.text_section.append(instruction)
 
-    def emit_C_call(self, func_name: str, inst_args: list[tuple[str, str]] = None):
+    def emit_C_call(self, func_name: str, inst_args: list[tuple[str, str]] = []):
         """
         Safely calls a C function across any OS.
         inst_args is an optional list of (instruction, source_operand).
@@ -217,6 +217,10 @@ class CodeGenerator:
         # an integer moves its value into the accumulator
         self.emit(f"    movq ${node.value}, %rax")
 
+    def _compile_FloatLiteral(self, node: FloatLiteral):
+        # an integer moves its value into the accumulator
+        self.emit(f"    movq ${node.value}, %xmm1")
+
     def _compile_Identifier(self, node: Identifier):
         # variable moves its stored value into the accumulator
         loc = self.variable_allocation[node.value]
@@ -251,3 +255,32 @@ class CodeGenerator:
             self.emit("    movq %rdx, %r15")
             self.emit("    cqto")           # Sign-extend %rax into %rdx:%rax
             self.emit("    idivq %r15")     # Divides %rdx:%rax by %r15. Quotient goes to %rax
+
+    def _compile_PrintStatement(self, node: PrintStatement):
+        if len(node.items) == 0:
+            self.emit_C_call("print_newline", [])
+            return
+
+        for item in node.items:
+            if item == ',':
+                self.emit_C_call("print_basic_comma")
+            elif item == ';':
+                self.emit_C_call("print_basic_semicolon")
+            elif isinstance(item, CallExpression) and item.name.value == "TAB":
+                self.compile_node(item.arguments[0]) # Put X in %rax
+                self.emit_C_call("basic_tab", [("movq", "%rax")])
+            elif isinstance(item, StringLiteral):
+                self.compile_node(item) 
+                self.emit_C_call("print_basic_string", [("movq", "%rax")])
+            elif isinstance(item, IntegerLiteral):
+                self.compile_node(item) 
+                self.emit_C_call("print_basic_number", [("movq", "%rax")])
+            elif isinstance(item, FloatLiteral):
+                self.compile_node(item) 
+                self.emit_C_call("print_basic_number", [("movq", "%rax")])
+            else:
+                raise NotImplementedError(f"IDK what {item} is")
+
+        last_item = node.items[-1]
+        if node.items[-1] not in (',', ';'):
+            self.emit_C_call("print_newline")

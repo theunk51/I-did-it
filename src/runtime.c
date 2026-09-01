@@ -96,11 +96,9 @@ void print_basic_tab(long long int x) {
     }
 }
 
-
-
-void basic_print() {
-}
-
+void basic_sin(long long int x);
+void basic_cos(long long int x);
+void basic_tan(long long int x);
 
 
 /**
