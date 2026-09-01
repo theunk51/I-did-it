@@ -66,8 +66,8 @@ class ReturnStatement(Statement):
     value: Expression
 
 @dataclass
-class ExpressionStatement(Statement):
-    expression: Expression
+class PrintStatement(Statement):
+    items: List[Expression | str]
 
 @dataclass
 class BlockStatement(Statement):

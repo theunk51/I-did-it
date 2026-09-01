@@ -78,7 +78,7 @@ class TokenType(Enum):
     SQR = auto()
     INT = auto()
     RND = auto()
-
+    TAB = auto()
 
     @classmethod
     def find_type(cls, name: str):
@@ -131,6 +131,6 @@ LITERAL_TYPES = frozenset([ TokenType.INTEGER, TokenType.FLOAT, TokenType.STRING
 BUILTIN_FUNCTIONS = frozenset([
     TokenType.SIN, TokenType.COS, TokenType.TAN, TokenType.ATN, 
     TokenType.EXP, TokenType.LOG, TokenType.ABS, TokenType.SQR, 
-    TokenType.INT, TokenType.RND
+    TokenType.INT, TokenType.RND, TokenType.TAB
 ])
 

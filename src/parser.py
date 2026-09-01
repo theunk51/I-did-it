@@ -1,6 +1,6 @@
 
 from typing import Literal
-from src.tokens import ARITHMETIC_OPERATORS, LITERAL_TYPES, TokenType, Token, RELATIONAL_OPERATORS
+from src.tokens import ARITHMETIC_OPERATORS, LITERAL_TYPES, TokenType, Token, RELATIONAL_OPERATORS, BUILTIN_FUNCTIONS
 from src.precedence import Precedence
 from src.lexer import Lexer
 from src.ast_nodes import *
@@ -68,6 +68,8 @@ class Parser:
             return self.parse_let_statement()
         elif self.current_token.type == TokenType.RETURN:
             return self.parse_return_statement()
+        elif self.current_token.type == TokenType.PRINT:
+            return self.parse_print_statement()
         else:
             return self.parse_expression(Precedence.NONE)
 
@@ -84,6 +86,22 @@ class Parser:
 
     def parse_return_statement(self):
         pass
+
+    def parse_print_statement(self):
+        self.consume(TokenType.PRINT)
+        items = []
+
+        while not self.current_token.type in (TokenType.NEWLINE, TokenType.EOF):
+            if self.current_token.type == TokenType.COMMA:
+                items.append(',')
+                self.consume(TokenType.COMMA)
+            elif self.current_token.type == TokenType.SEMICOLON:
+                items.append(';')
+                self.consume(TokenType.SEMICOLON)
+            else:
+                # the current print item is an expression of some sort
+                items.append(self.parse_expression(Precedence.NONE))
+        return PrintStatement(items)
     
     def parse_expression(self, precedence):
         # parses any expression of a given precedence level or higher
@@ -146,10 +164,25 @@ class Parser:
             return BooleanLiteral(token.value.upper() == 'TRUE')
 
     def parse_identifier(self):
-        self.consume(TokenType.IDENTIFIER)
+        if self.current_token in BUILTIN_FUNCTIONS:
+            self.consume(BUILTIN_FUNCTIONS)
+        else:
+            self.consume(TokenType.IDENTIFIER)
         return Identifier(self.previous_token.value)
-    
-   
+
+    def parse_call_expression(self, left):
+        arguments = []
+        self.consume(TokenType.LPAREN)
+        if self.current_token.type != TokenType.RPAREN:
+            arguments.append(self.parse_expression(Precedence.NONE))
+            while self.current_token.type == TokenType.COMMA:
+                self.consume(TokenType.COMMA)
+                arguments.append(self.parse_expression(Precedence.NONE))
+        self.consume(TokenType.RPAREN)
+
+        return CallExpression(function=left, arguments=arguments)
+
+
     __PARSING_RULES = {
         TokenType.NOT: (parse_unary_expression, None),
         TokenType.MINUS: (parse_unary_expression, parse_binary_expression),
@@ -171,6 +204,19 @@ class Parser:
         TokenType.STRING: (parse_literal, None),
         TokenType.BOOLEAN: (parse_literal, None),
         TokenType.IDENTIFIER: (parse_identifier, None),
-        TokenType.LPAREN: (parse_grouped_expression, None),
+
+        # Built-ins act exactly like identifiers here
+        TokenType.SIN: (parse_identifier, None),
+        TokenType.COS: (parse_identifier, None),
+        TokenType.TAN: (parse_identifier, None),
+        TokenType.ATN: (parse_identifier, None),
+        TokenType.EXP: (parse_identifier, None),
+        TokenType.LOG: (parse_identifier, None),
+        TokenType.ABS: (parse_identifier, None),
+        TokenType.SQR: (parse_identifier, None),
+        TokenType.INT: (parse_identifier, None),
+        TokenType.RND: (parse_identifier, None),
+        TokenType.TAB: (parse_identifier, None),
+        TokenType.LPAREN: (parse_grouped_expression, parse_call_expression),
     }
     
