@@ -123,13 +123,13 @@ class Parser:
         return left
 
     def parse_unary_expression(self) -> Expression:
-        op_type = self.current_token.value
+        op_type = self.current_token.type
         self.consume(TokenType.NOT, TokenType.MINUS)
         right = self.parse_expression(Precedence.UNARY)
         return PrefixExpression(op_type, right)
 
     def parse_binary_expression(self, left: Expression) -> Expression:
-        op_type = self.current_token.value
+        op_type = self.current_token.type
         precedence = Precedence.get_prec(self.current_token.type)
         if Precedence.is_right_associative(self.current_token.type):
             precedence -= 1

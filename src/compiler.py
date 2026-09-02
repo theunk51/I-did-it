@@ -1,5 +1,6 @@
 from src.parser import Parser
 from src.ast_nodes import *
+from src.tokens import TokenType
 
 class Compiler:
     """
@@ -115,18 +116,18 @@ class Compiler:
             self.emit("    movsd %xmm0, (%rsp)")
 
         if node_type == int:
-            self.emit("    popq %rbx")
+            self.emit("    popq %rdx")
             self.emit("    popq %rax")
             
-            if node.operator == '+':
-                self.emit("    addq %rbx, %rax")
-            elif node.operator == '-':
-                self.emit("    subq %rbx, %rax")
-            elif node.operator == '*':
-                self.emit("    imulq %rbx, %rax")
-            elif node.operator == '/':
+            if node.operator == TokenType.PLUS:
+                self.emit("    addq %rdx, %rax")
+            elif node.operator == TokenType.MINUS:
+                self.emit("    subq %rdx, %rax")
+            elif node.operator == TokenType.MUL:
+                self.emit("    imulq %rdx, %rax")
+            elif node.operator == TokenType.DIV:
                 self.emit("    cqto")
-                self.emit("    idivq %rbx")
+                self.emit("    idivq %rdx")
                 
             self.emit("    pushq %rax")
             
@@ -136,13 +137,13 @@ class Compiler:
             self.emit("    movsd (%rsp), %xmm0")
             self.emit("    addq $8, %rsp")
             
-            if node.operator == '+':
+            if node.operator == TokenType.PLUS:
                 self.emit("    addsd %xmm1, %xmm0")
-            elif node.operator == '-':
+            elif node.operator == TokenType.MINUS:
                 self.emit("    subsd %xmm1, %xmm0")
-            elif node.operator == '*':
+            elif node.operator == TokenType.MUL:
                 self.emit("    mulsd %xmm1, %xmm0")
-            elif node.operator == '/':
+            elif node.operator == TokenType.DIV:
                 self.emit("    divsd %xmm1, %xmm0")
                 
             self.emit("    subq $8, %rsp")

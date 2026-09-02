@@ -89,8 +89,6 @@ class RegisterAllocator:
         if isinstance(node, LetStatement):
             self._mark_variable_lifespan(node.name.value)
             self.analyze_variables_in_nodes(node.value)
-        elif isinstance(node, ExpressionStatement):
-            self.analyze_variables_in_nodes(node.expression)
         elif isinstance(node, Identifier):
             self._mark_variable_lifespan(node.value)
         elif isinstance(node, InfixExpression):

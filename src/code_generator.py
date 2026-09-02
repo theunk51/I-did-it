@@ -6,6 +6,7 @@ from src.abi_specification import ABISpecification as ABI
 from src.debug import print_ast
 from src.ast_nodes import *
 from src.parser import Parser
+from src.tokens import TokenType
 
 class CodeGenerator:
     """
@@ -243,13 +244,13 @@ class CodeGenerator:
 
         # left = %rax;  right = %rdx
         # instruction source, destination
-        if node.operator == "+":
+        if node.operator == TokenType.PLUS:
             self.emit("    addq %rdx, %rax")
-        elif node.operator == "-":
+        elif node.operator == TokenType.MINUS:
             self.emit("    subq %rdx, %rax")
-        elif node.operator == "*":
+        elif node.operator == TokenType.MUL:
             self.emit("    imulq %rdx, %rax")
-        elif node.operator == "/":
+        elif node.operator == TokenType.DIV:
             # The divisor is currently in %rdx. 
             # idivq requires the dividend to be in %rdx:%rax
             self.emit("    movq %rdx, %r15")

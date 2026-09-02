@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Any, Optional, Dict
+from src.tokens import TokenType
 
 class ASTNode:
     pass
@@ -39,13 +40,13 @@ class BooleanLiteral(Expression):
 
 @dataclass
 class PrefixExpression(Expression):
-    operator: str
+    operator: TokenType
     right: Expression
 
 @dataclass
 class InfixExpression(Expression):
     left: Expression
-    operator: str
+    operator: TokenType
     right: Expression
 
 @dataclass
