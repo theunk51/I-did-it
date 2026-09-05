@@ -67,7 +67,7 @@ class TokenType(Enum):
     SEMICOLON = auto()
     COMMA = auto()
 
-    # Built-in Math Functions
+    # Built-in Functions
     SIN = auto()
     COS = auto()
     TAN = auto()
@@ -126,7 +126,9 @@ LOGICAL_OPERATORS = frozenset([
 
 OPERATORS = ARITHMETIC_OPERATORS | RELATIONAL_OPERATORS | LOGICAL_OPERATORS
 
-LITERAL_TYPES = frozenset([ TokenType.INTEGER, TokenType.FLOAT, TokenType.STRING, TokenType.IDENTIFIER, TokenType.BOOLEAN ])
+LITERAL_TYPES = frozenset([
+    TokenType.INTEGER, TokenType.FLOAT, TokenType.STRING, TokenType.IDENTIFIER, TokenType.BOOLEAN 
+])
 
 BUILTIN_FUNCTIONS = frozenset([
     TokenType.SIN, TokenType.COS, TokenType.TAN, TokenType.ATN, 

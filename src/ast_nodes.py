@@ -3,7 +3,7 @@ from typing import List, Any, Optional, Dict
 from src.tokens import TokenType
 
 class ASTNode:
-    pass
+    expr_type = None
 
 class Expression(ASTNode):
     pass
