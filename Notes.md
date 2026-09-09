@@ -1,0 +1,1 @@
+- an opportunity for improvement is the have the exponation be like a function call to reduce the number of repetitions.

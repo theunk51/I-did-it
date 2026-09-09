@@ -34,6 +34,7 @@ class Generator:
         
         # exit program, returning 0 from main
         # self.emit("movq $0, %rax")
+        self.emit_noindent(".main_exit:")
         self.emit("movq %rbp, %rsp")
         self.pop("%rbp")
         self.emit("ret")
@@ -100,6 +101,9 @@ class Generator:
         """
         self.emit(instruction, section=section, indent=False)
 
+    def emit_label(self, label:str):
+        self.emit_noindent(f"{label}:")
+
     def push(self, register: str):
         self.emit(f"pushq {register}")
         self.stack_offset -= 8
@@ -107,7 +111,12 @@ class Generator:
     def pop(self, register: str):
         self.emit(f"popq {register}")
         self.stack_offset += 8
-    
+
+    def create_label(self, name: str):
+        """Creates a new label for the given situtation using an internal counter."""
+        count = self.label_counter.get(name, 0) + 1
+        self.label_counter[name] = count
+        return f".L_{name}_{count}"
 
     def compile_node(self, node: ASTNode):
         """
@@ -120,7 +129,6 @@ class Generator:
     
     def _missing_compile_node(self, node, *args, **kwargs):
          raise NotImplementedError(f"No compile method defined for {type(node).__name__}")
-    
 
     def _compile_Program(self, node: Program):
         for line_number, statement in sorted(node.statements.items()):
@@ -153,25 +161,84 @@ class Generator:
             self.emit("movq %rdx, %r15")
             self.emit("cqto")           # Sign-extend %rax into %rdx:%rax
             self.emit("idivq %r15")     # Divides %rdx:%rax by %r15. Quotient goes to %rax
+        elif node.operator == TokenType.EXPONENT:
+            # def exponent(base, exponent):
+            #   result = 1
+            #   while exponent > 0:
+            #       if exponent % 2 == 1:   
+            #           result *= base
+            #       base *= base            # Square the base
+            #       exponent //= 2          # Halve the exponent
+            # Time complexity: O(log n)
 
+            end_label = self.create_label("exponent_end")
+            while_label = self.create_label("exponent_while")
+            even_label = self.create_label("exponent_even")
 
+            # %rax = base
+            # %rdx = exponent
+            # %r15 = result 
+            self.emit_label(self.create_label("exponent"))
+            self.emit("movq $1, %r15")
+            self.emit("testq %rdx, %rdx")
+            self.emit(f"jle {end_label}")
+            self.emit_label(while_label)
+            self.emit("testq $1, %rdx")
+            self.emit(f"jz {even_label}")
+            self.emit("imulq %rax, %r15")
+            self.emit_label(even_label)
+            self.emit("imulq %rax, %rax")
+            self.emit("shrq $1, %rdx") 
+            self.emit(f"jnz {while_label}")
+            self.emit_label(end_label)
+            self.emit("movq %r15, %rax") 
+
+            
 ##################################
 # Test Cases 
 ##################################
-
-
 
 if __name__ == "__main__":
     import subprocess
     import sys
     from src.parser import Parser
 
-    num_tests = 0
-    num_passed = 0
+    TEST_CASES = [
+        (0, "0"),
+        (42, "42"),
+        (21, "5+20-4"),
+        (41, " 12 + 34 - 5 "),
+        (47, "5+6*7"),
+        (15, "5*(9-6)"),
+        (4, "(3+5)/2"),
+        (8, "2^3"),
+        (28, "8 / 2 * 7"),
+        (32, "2 ^ 5"),
+        (16, "2 ^ 2 ^ 2"),
+        (512, "2 ^ (3 ^ 2)"),
+        (56, "2 ^ 3 * 7"),
+        (2, "2 ^ 7 / 2 ^ 6"),
+        (64, "2 ^ 7 - 2 ^ 6"),
+        (192, "2 ^ 7 + 2 ^ 6"),
+        (8192, "2 ^ 7 * 2 ^ 6"),
 
+    ]
+
+    num_tests = len(TEST_CASES)
+    num_ran = 0
+    num_passed = 0
+    failures = []
+
+    def draw_progress_bar(current: int, total: int, bar_length: int = 40):
+        progress = current / total
+        filled = int(bar_length * progress)
+        empty = bar_length - filled
+        bar = "█" * filled + "-" * empty
+        percent = int(progress * 100)
+        print(f"\rTesting: [{bar}] {percent}% ({current}/{total})", end="", flush=True)
+    
     def assert_compilation(expected: int, source_code: str):
-        global num_tests, num_passed
-        num_tests += 1
+        global num_ran, num_passed
 
         ast = Parser("1 " + source_code).parse_program()
         gen = Generator(ast)
@@ -180,24 +247,28 @@ if __name__ == "__main__":
 
         process = subprocess.run(["gcc", "-static", "-o", "temp.exe", "temp.s"])
         if process.returncode != 0:
-            sys.exit(process.returncode)
+            failures.append(
+                f"GCC Compilation failed on: {source_code}\n       {process.stderr.strip()}"
+            )
         
         process = subprocess.run(['./temp.exe'])
         if process.returncode != expected:
-            print(f"{source_code} => {expected} expected, but got {process.returncode}")
+            failures.append(f"{source_code} => {expected} expected, but got {process.returncode}")
         else:
-            print("OK")
             num_passed += 1
 
-    assert_compilation(0, "0")
-    assert_compilation(42, "42")
-    assert_compilation(21, "5+20-4")
-    assert_compilation(41, " 12 + 34 - 5 ")
-    assert_compilation(47, "5+6*7")
-    assert_compilation(15, "5*(9-6)")
-    assert_compilation(4, "(3+5)/2")
-    assert_compilation(28, "8 / 2 * 7")
+        num_ran += 1
+        draw_progress_bar(num_ran, num_tests)
+    
+    
+    # main
+    draw_progress_bar(0, num_tests)
+    for case in TEST_CASES:
+        assert_compilation(*case)
 
-    print(f"Passed {num_passed}/{num_tests}. (passing rate: {num_passed/num_tests:.3%})")
-
-        
+    print(f"\nPassed {num_passed}/{num_tests}. (passing rate: {num_passed/num_tests:.3%})")
+    if failures:
+        print("Failures:")
+        for failure in failures:
+            print(failure)
+            
