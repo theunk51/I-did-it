@@ -9,6 +9,7 @@ from src.parser import Parser
 from src.semantic_analyzer import ValueType
 from src.tokens import TokenType
 
+
 class Generator:
     def __init__(self, ast: Program):
         self.ast = ast
@@ -27,18 +28,18 @@ class Generator:
         self.emit_noindent(".global main")
         self.emit_noindent(".text")
         self.emit_noindent("main:")
-        self.push("%rbp") # save the previous stack frame pointer
-        self.emit("movq %rsp, %rbp") # load the current frame pointer
+        self.push("%rbp")  # save the previous stack frame pointer
+        self.emit("movq %rsp, %rbp")  # load the current frame pointer
 
         self.compile_node(self.ast)
-        
+
         # exit program, returning 0 from main
         # self.emit("movq $0, %rax")
         self.emit_noindent(".main_exit:")
         self.emit("movq %rbp, %rsp")
         self.pop("%rbp")
         self.emit("ret")
-        self.emit_noindent('\n')
+        self.emit_noindent("\n")
 
         # ensure that everything has been returned
         assert self.stack_offset == 0
@@ -53,13 +54,13 @@ class Generator:
 
     def generate_assembly_file(self, filename: str | Path = "output.s") -> None:
         """
-        Writes the assembly instructions to the given file or path. Defaults 
+        Writes the assembly instructions to the given file or path. Defaults
         to output.s.
         """
 
         path = Path(filename)
         path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         asm = self.generate_assembly_as_string()
         path.write_text(asm, encoding="utf-8")
 
@@ -69,12 +70,12 @@ class Generator:
 
     def error(self, message: str):
         raise Exception(f"Compiler Error at '{self.current_line_number}': {message}")
-    
+
     def align_stack(self, upcoming_allocation: int) -> int:
         """
-        Calculates how many bytes of padding are needed to ensure the stack 
+        Calculates how many bytes of padding are needed to ensure the stack
         pointer (%rsp) is aligned to the ABI's required alignment boundary
-        AFTER the upcoming allocation is subtracted. Use 0 to align the stack with 
+        AFTER the upcoming allocation is subtracted. Use 0 to align the stack with
         its allocation.
         """
         total_pending_offset = abs(self.stack_offset) + upcoming_allocation
@@ -82,7 +83,7 @@ class Generator:
         if misalignment == 0:
             return 0
         return ABI.stack_alignment - misalignment
-    
+
     def emit(self, instruction: str, section: Literal["text", "data", "bss"] = "text", indent: bool = True):
         """
         Appends the given instructions to the assembly program's specified section.
@@ -94,14 +95,11 @@ class Generator:
             self.bss_section.append(formatted_instruction)
         else:
             self.text_section.append(formatted_instruction)
-    
+
     def emit_noindent(self, instruction: str, section: Literal["text", "data", "bss"] = "text"):
-        """
-        Convenience method to emit an instruction (like a label) without indentation.
-        """
         self.emit(instruction, section=section, indent=False)
 
-    def emit_label(self, label:str):
+    def emit_label(self, label: str):
         self.emit_noindent(f"{label}:")
 
     def push(self, register: str):
@@ -122,13 +120,13 @@ class Generator:
         """
         Dynamically dispatch to the correct compilation method for an ASTNode
         subclass. If one is not found, a dummy method will be returned.
-        """  
+        """
         method_name = f"_compile_{type(node).__name__}"
         method = getattr(self, method_name, self._missing_compile_node)
         return method(node)
-    
+
     def _missing_compile_node(self, node, *args, **kwargs):
-         raise NotImplementedError(f"No compile method defined for {type(node).__name__}")
+        raise NotImplementedError(f"No compile method defined for {type(node).__name__}")
 
     def _compile_Program(self, node: Program):
         for line_number, statement in sorted(node.statements.items()):
@@ -155,17 +153,21 @@ class Generator:
             self.emit("subq %rdx, %rax")
         elif node.operator == TokenType.MUL:
             self.emit("imulq %rdx, %rax")
-        elif node.operator == TokenType.DIV:
-            # The divisor is currently in %rdx. 
+        elif node.operator in (TokenType.DIV, TokenType.MOD):
+            # The divisor is currently in %rdx.
             # idivq requires the dividend to be in %rdx:%rax
             self.emit("movq %rdx, %r15")
-            self.emit("cqto")           # Sign-extend %rax into %rdx:%rax
-            self.emit("idivq %r15")     # Divides %rdx:%rax by %r15. Quotient goes to %rax
+            self.emit("cqto")  # Sign-extend %rax into %rdx:%rax
+            self.emit("idivq %r15")  # Divides %rdx:%rax by %r15. Quotient goes to %rax
+
+            if node.operator == TokenType.MOD:
+                self.emit("movq %rdx, %rax")
+
         elif node.operator == TokenType.EXPONENT:
             # def exponent(base, exponent):
             #   result = 1
             #   while exponent > 0:
-            #       if exponent % 2 == 1:   
+            #       if exponent % 2 == 1:
             #           result *= base
             #       base *= base            # Square the base
             #       exponent //= 2          # Halve the exponent
@@ -177,7 +179,7 @@ class Generator:
 
             # %rax = base
             # %rdx = exponent
-            # %r15 = result 
+            # %r15 = result
             self.emit_label(self.create_label("exponent"))
             self.emit("movq $1, %r15")
             self.emit("testq %rdx, %rdx")
@@ -188,14 +190,14 @@ class Generator:
             self.emit("imulq %rax, %r15")
             self.emit_label(even_label)
             self.emit("imulq %rax, %rax")
-            self.emit("shrq $1, %rdx") 
+            self.emit("shrq $1, %rdx")
             self.emit(f"jnz {while_label}")
             self.emit_label(end_label)
-            self.emit("movq %r15, %rax") 
+            self.emit("movq %r15, %rax")
 
-            
+
 ##################################
-# Test Cases 
+# Test Cases
 ##################################
 
 if __name__ == "__main__":
@@ -221,7 +223,17 @@ if __name__ == "__main__":
         (64, "2 ^ 7 - 2 ^ 6"),
         (192, "2 ^ 7 + 2 ^ 6"),
         (8192, "2 ^ 7 * 2 ^ 6"),
-
+        (1, "10 % 3"),
+        (0, "10 % 2"),
+        (5, "5 % 10"),
+        (0, "42 % 1"),
+        (0, "0 % 5"),
+        (2, "10 % 3 + 1"),
+        (2, "10 % (3 + 1)"),
+        (0, "10 * 2 % 5"),
+        (4, "20 % 6 * 2"),
+        (12, "10 + 20 % 6"),
+        (0, "10 % 4 % 2"),
     ]
 
     num_tests = len(TEST_CASES)
@@ -236,7 +248,7 @@ if __name__ == "__main__":
         bar = "█" * filled + "-" * empty
         percent = int(progress * 100)
         print(f"\rTesting: [{bar}] {percent}% ({current}/{total})", end="", flush=True)
-    
+
     def assert_compilation(expected: int, source_code: str):
         global num_ran, num_passed
 
@@ -248,19 +260,20 @@ if __name__ == "__main__":
         process = subprocess.run(["gcc", "-static", "-o", "temp.exe", "temp.s"])
         if process.returncode != 0:
             failures.append(
-                f"GCC Compilation failed on: {source_code}\n       {process.stderr.strip()}"
+                f"GCC Compilation failed on: {source_code}\n\t\t{process.stderr.strip()}"
             )
-        
-        process = subprocess.run(['./temp.exe'])
+
+        process = subprocess.run(["./temp.exe"])
         if process.returncode != expected:
-            failures.append(f"{source_code} => {expected} expected, but got {process.returncode}")
+            failures.append(
+                f"{source_code} => {expected} expected, but got {process.returncode}"
+            )
         else:
             num_passed += 1
 
         num_ran += 1
         draw_progress_bar(num_ran, num_tests)
-    
-    
+
     # main
     draw_progress_bar(0, num_tests)
     for case in TEST_CASES:
@@ -271,4 +284,3 @@ if __name__ == "__main__":
         print("Failures:")
         for failure in failures:
             print(failure)
-            

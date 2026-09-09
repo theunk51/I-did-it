@@ -1,1 +1,2 @@
 - an opportunity for improvement is the have the exponation be like a function call to reduce the number of repetitions.
+- [ ] The parsing function table should be seperated into two because most of the entries only have one parsing function.
