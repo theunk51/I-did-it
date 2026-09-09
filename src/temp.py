@@ -195,6 +195,14 @@ class Generator:
             self.emit_label(end_label)
             self.emit("movq %r15, %rax")
 
+    def _compile_PrefixExpression(self, node: PrefixExpression):
+        self.compile_node(node.right)
+        if node.operator == TokenType.MINUS:
+            self.emit("negq %rax")
+        elif node.operator == TokenType.NOT:
+            self.emit("testq %rax, %rax")   # sets the Zero Flag (ZF) if %rax is 0
+            self.emit("setz %al")           # %al becomes 1 if ZF is set, else 0
+            self.emit("movzbq %al, %rax")   # Zero-extend %al across all of %rax to wipe upper bits
 
 ##################################
 # Test Cases
@@ -234,6 +242,19 @@ if __name__ == "__main__":
         (4, "20 % 6 * 2"),
         (12, "10 + 20 % 6"),
         (0, "10 % 4 % 2"),
+
+
+        (5, "-5 + 10"),
+        (-5, "-10 + 5"),
+        (-50, "10 * -5"),
+        (5, "-(-5)"),
+        (0, "-0"),
+        (1, "not 0"),
+        (0, "not 1"),
+        (0, "not 42"),
+        (1, "not not 42"),
+        (1, "not (10 - 10)"),
+        (0, "not (10 - 5)"),
     ]
 
     num_tests = len(TEST_CASES)
@@ -264,9 +285,13 @@ if __name__ == "__main__":
             )
 
         process = subprocess.run(["./temp.exe"])
-        if process.returncode != expected:
+        # Windows exit codes are unsigned 32-bit. We need to cast them back to signed ints.
+        actual_code = process.returncode
+        if actual_code >= 2**31:
+            actual_code -= 2**32
+        if actual_code != expected:
             failures.append(
-                f"{source_code} => {expected} expected, but got {process.returncode}"
+                f"{source_code} => {expected} expected, but got {actual_code}"
             )
         else:
             num_passed += 1
