@@ -11,6 +11,15 @@ from src.tokens import TokenType
 
 
 class Generator:
+    comparison_instructions = {
+        TokenType.LT:   "setl",
+        TokenType.LTEQ: "setle",
+        TokenType.GT:   "setg",
+        TokenType.GTEQ: "setge",
+        TokenType.EQ:   "sete",
+        TokenType.NEQ:  "setne"
+    }
+    
     def __init__(self, ast: Program):
         self.ast = ast
         self.current_line_number: int = 0
@@ -74,12 +83,12 @@ class Generator:
     def align_stack(self, upcoming_allocation: int) -> int:
         """
         Calculates how many bytes of padding are needed to ensure the stack
-        pointer (%rsp) is aligned to the ABI's required alignment boundary
+        pointer (%rsp) is aligned to the ABI's required stack alignment boundary
         AFTER the upcoming allocation is subtracted. Use 0 to align the stack with
-        its allocation.
+        its current allocation.
         """
-        total_pending_offset = abs(self.stack_offset) + upcoming_allocation
-        misalignment = total_pending_offset % ABI.stack_alignment
+        new_stack_offset = abs(self.stack_offset) + upcoming_allocation
+        misalignment = new_stack_offset % ABI.stack_alignment
         if misalignment == 0:
             return 0
         return ABI.stack_alignment - misalignment
@@ -164,13 +173,13 @@ class Generator:
                 self.emit("movq %rdx, %rax")
 
         elif node.operator == TokenType.EXPONENT:
-            # def exponent(base, exponent):
+            # def power(base, exponent):
             #   result = 1
             #   while exponent > 0:
             #       if exponent % 2 == 1:
             #           result *= base
-            #       base *= base            # Square the base
-            #       exponent //= 2          # Halve the exponent
+            #       base *= base
+            #       exponent //= 2
             # Time complexity: O(log n)
 
             end_label = self.create_label("exponent_end")
@@ -194,6 +203,11 @@ class Generator:
             self.emit(f"jnz {while_label}")
             self.emit_label(end_label)
             self.emit("movq %r15, %rax")
+        elif node.operator in self.comparison_instructions:
+            instruction = self.comparison_instructions[node.operator]
+            self.emit("cmpq %rdx, %rax")  
+            self.emit(f"{instruction} %al")  
+            self.emit("movzbq %al, %rax")
 
     def _compile_PrefixExpression(self, node: PrefixExpression):
         self.compile_node(node.right)
@@ -242,8 +256,6 @@ if __name__ == "__main__":
         (4, "20 % 6 * 2"),
         (12, "10 + 20 % 6"),
         (0, "10 % 4 % 2"),
-
-
         (5, "-5 + 10"),
         (-5, "-10 + 5"),
         (-50, "10 * -5"),
@@ -255,6 +267,24 @@ if __name__ == "__main__":
         (1, "not not 42"),
         (1, "not (10 - 10)"),
         (0, "not (10 - 5)"),
+        (1, "5 < 10"),
+        (0, "10 < 5"),
+        (0, "5 < 5"),
+        (1, "5 <= 10"),
+        (0, "10 <= 5"),
+        (1, "5 <= 5"),
+        (0, "5 > 10"),
+        (1, "10 > 5"),
+        (0, "5 > 5"),
+        (0, "5 >= 10"),
+        (1, "10 >= 5"),
+        (1, "5 >= 5"),
+        (1, "5 = 5"),
+        (0, "5 = 10"),
+        (0, "5 <> 5"),
+        (1, "5 <> 10"),
+        (1, "(10 > 5) + (5 < 10) = 2"),
+        (0, "10 > 5 = 0")
     ]
 
     num_tests = len(TEST_CASES)
@@ -278,7 +308,9 @@ if __name__ == "__main__":
         gen.walk_ast()
         gen.generate_assembly_file("temp.s")
 
-        process = subprocess.run(["gcc", "-static", "-o", "temp.exe", "temp.s"])
+        process = subprocess.run(
+            ["gcc", "-static", "-o", "temp.exe", "temp.s"], capture_output=True, text=True
+        )
         if process.returncode != 0:
             failures.append(
                 f"GCC Compilation failed on: {source_code}\n\t\t{process.stderr.strip()}"
