@@ -48,8 +48,12 @@ class RegisterAllocator:
         
         # State for Pass 2 (Allocation)
         self.free_registers  = deque(ABISpecification.allocatable_registers)
-        self.active_lifespans: list[Lifespan] = []
+        self.free_spills: deque[str] = deque([])
+        self.total_spill_slots = 0
+        self.active_registers: list[Lifespan] = []
+        self.active_spills: list[Lifespan] = []
         self.allocation_map: dict[str, str] = {}
+
 
     @classmethod
     def allocate(cls, program: Program) -> dict[str, str]:
@@ -104,36 +108,55 @@ class RegisterAllocator:
         # Note: Literals (Integer, Float, String, Boolean) don't contain variables, 
         # so we don't need to do anything when we hit them.
 
+
     def compute_register_allocation(self):
-        generate_bss_name = lambda x: f"{x}_bss(%rip)"
+        def get_spill_slot():
+            if self.free_spills:
+                return self.free_spills.popleft()
+
+            slot_reference = f"bss_spill_slot_{self.total_spill_slots}(%rip)"
+            self.total_spill_slots += 1
+            return slot_reference
 
         sorted_lifespans = sorted(self.variable_lifespans.values(), key=lambda x: x.start)
+
         for current_lifespan in sorted_lifespans:
             # Expire old variables: if another allocated variable dies before the current variable starts,
             # return the register so that it can be used by the current variable
-            for active_lifespan in self.active_lifespans[:]:
-                if active_lifespan.end < current_lifespan.start:
-                    self.active_lifespans.remove(active_lifespan)
-                    register = self.allocation_map[active_lifespan.name]
-                    self.free_registers.append(register)
+            # Note: active_lifespan is sorted by death times, so if the first is not expired, then none are.
+            while self.active_registers and self.active_registers[0].end < current_lifespan.start:
+                expired_lifespan = self.active_registers.pop(0)
+                register = self.allocation_map[expired_lifespan.name]
+                self.free_registers.append(register)
 
+            # This ensures BSS slots are actually used.
+            while self.active_spills and self.active_spills[0].end < current_lifespan.start:
+                expired_spill = self.active_spills.pop(0)
+                slot = self.allocation_map[expired_spill.name]
+                self.free_spills.append(slot)
+        
             # allocate or spill registers
             if len(self.free_registers) > 0:
                 register = self.free_registers.popleft()
                 self.allocation_map[current_lifespan.name] = register
-                insort(self.active_lifespans, current_lifespan, key=lambda x: x.end)
+                self.active_registers.append(current_lifespan)
+                self.active_registers.sort(key=lambda x: x.end)
             else:
-                longest_lifespan = self.active_lifespans[-1]
+                longest_lifespan = self.active_registers[-1]
                 if longest_lifespan.end > current_lifespan.end:
                     # the allocated variable lives longer, so we can steal its register. The kicked
                     # variable is stored in the .bss section.
                     register = self.allocation_map[longest_lifespan.name]
-                    self.allocation_map[longest_lifespan.name] = generate_bss_name(longest_lifespan.name)
+                    self.allocation_map[longest_lifespan.name] = get_spill_slot()
                     self.allocation_map[current_lifespan.name] = register
-                    self.active_lifespans.pop(-1)
-                    insort(self.active_lifespans, current_lifespan, key=lambda x: x.end)
+
+                    self.active_registers.pop(-1)
+                    self.active_registers.append(current_lifespan)
+                    self.active_registers.sort(key=lambda x: x.end)
+                    self.active_spills.append(longest_lifespan)
+                    self.active_spills.sort(key=lambda x: x.end)
                 else:
                     # the current variable lives the longest so far, so spill into BSS
-                    self.allocation_map[current_lifespan.name] = generate_bss_name(current_lifespan.name)
-        
-        
+                    self.allocation_map[current_lifespan.name] = get_spill_slot()
+                    self.active_spills.append(current_lifespan)
+                    self.active_spills.sort(key=lambda x: x.end)
