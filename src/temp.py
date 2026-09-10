@@ -32,6 +32,7 @@ class Generator:
         # program state
         self.label_counter = {}
         self.stack_offset = 0
+        self.variable_allocations = RegisterAllocator.allocate(ast)
 
     def walk_ast(self):
         self.emit_noindent(".global main")
@@ -70,6 +71,7 @@ class Generator:
         path = Path(filename)
         path.parent.mkdir(parents=True, exist_ok=True)
 
+        self.walk_ast()
         asm = self.generate_assembly_as_string()
         path.write_text(asm, encoding="utf-8")
 
@@ -93,6 +95,12 @@ class Generator:
             return 0
         return ABI.stack_alignment - misalignment
 
+    def get_variable_location(self, name: str):
+        location = self.variable_allocations.get(name, None)
+        if location is None:
+            self.error(f"The variable {name} is not defined")
+        return location
+    
     def emit(self, instruction: str, section: Literal["text", "data", "bss"] = "text", indent: bool = True):
         """
         Appends the given instructions to the assembly program's specified section.
@@ -218,6 +226,15 @@ class Generator:
             self.emit("setz %al")           # %al becomes 1 if ZF is set, else 0
             self.emit("movzbq %al, %rax")   # Zero-extend %al across all of %rax to wipe upper bits
 
+    def _compile_Identifier(self, node: Identifier):
+        self.emit(f"movq {self.get_variable_location(node.value)}, %rax")
+
+    def _compile_LetStatement(self, node: LetStatement):
+        self.compile_node(node.value)
+        destination = self.get_variable_location(node.name.value)
+        self.emit(f"movq %rax, {destination}")
+
+    
 ##################################
 # Test Cases
 ##################################
@@ -284,7 +301,24 @@ if __name__ == "__main__":
         (0, "5 <> 5"),
         (1, "5 <> 10"),
         (1, "(10 > 5) + (5 < 10) = 2"),
-        (0, "10 > 5 = 0")
+        (0, "10 > 5 = 0"),
+        (5, """
+            let x = 5
+            x
+        """),
+        (15, """
+            let first = 5
+            let second = 10
+            first + second
+        """),
+        
+        (42, """
+            let a = 1
+            let b = 2
+            let c = 3
+            let result = a + b + c + 36
+            result
+        """),
     ]
 
     num_tests = len(TEST_CASES)
@@ -303,34 +337,47 @@ if __name__ == "__main__":
     def assert_compilation(expected: int, source_code: str):
         global num_ran, num_passed
 
-        ast = Parser("1 " + source_code).parse_program()
-        gen = Generator(ast)
-        gen.walk_ast()
-        gen.generate_assembly_file("temp.s")
+        indented_source = "\n".join("    " + line.strip() for line in source_code.strip().split("\n"))
+        try:
+            numbered_code = ""
+            for i, line in enumerate(source_code.strip().split('\n')):
+                numbered_code += f"{(i+1)*10} {line.strip()}\n"
 
-        process = subprocess.run(
-            ["gcc", "-static", "-o", "temp.exe", "temp.s"], capture_output=True, text=True
-        )
-        if process.returncode != 0:
-            failures.append(
-                f"GCC Compilation failed on: {source_code}\n\t\t{process.stderr.strip()}"
+            try:
+                ast = Parser(numbered_code).parse_program()
+                gen = Generator(ast).generate_assembly_file("temp.s")
+            except Exception as e:
+                failures.append(f"{num_ran}. Parser Crashed: {repr(e)}\n  Source:\n{indented_source}")
+                return
+
+            process = subprocess.run(
+                ["gcc", "-static", "-o", "temp.exe", "temp.s"], capture_output=True, text=True
             )
+            if process.returncode != 0:
+                failures.append(
+                    f"{num_ran}. GCC Compilation Failed:\n  Error: {process.stderr.strip()}\n  Source:\n{indented_source}"
+                )
+                return
+    
+            process = subprocess.run(["./temp.exe"])
+            # Windows exit codes are unsigned 32-bit. We need to cast them back to signed ints.
+            actual_code = process.returncode
+            if actual_code >= 2**31:
+                actual_code -= 2**32
+            if actual_code != expected:
+                failures.append(
+                    f"{num_ran}. {source_code} => {expected} expected, but got {actual_code}"
+                )
+                return
+            else:
+                num_passed += 1
+        except Exception as e:
+            failures.append(f"{source_code} => {repr(e)}")
+        finally:
+            num_ran += 1
+            draw_progress_bar(num_ran, num_tests)
 
-        process = subprocess.run(["./temp.exe"])
-        # Windows exit codes are unsigned 32-bit. We need to cast them back to signed ints.
-        actual_code = process.returncode
-        if actual_code >= 2**31:
-            actual_code -= 2**32
-        if actual_code != expected:
-            failures.append(
-                f"{source_code} => {expected} expected, but got {actual_code}"
-            )
-        else:
-            num_passed += 1
-
-        num_ran += 1
-        draw_progress_bar(num_ran, num_tests)
-
+        
     # main
     draw_progress_bar(0, num_tests)
     for case in TEST_CASES:
