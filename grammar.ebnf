@@ -38,8 +38,10 @@ statement ::= let_stmt
             | data_stmt
             | read_stmt
             | stop_stmt
+            | end_stmt
             | func_decl
             | dim_stmt
+            | on_stmt
             | rem_stmt
 
 let_stmt ::= "LET" variable "=" expression
@@ -51,15 +53,15 @@ return_stmt ::= "RETURN"
 gosub_stmt ::= "GOSUB" line_number
 next_stmt ::= "NEXT" variable
 for_stmt ::= "FOR" variable "=" expression "TO" expression ("STEP" expression)?
-if_stmt ::= "IF" (expression relation_op expression) "THEN" line_number ("ELSE" line_number)?
+if_stmt ::= "IF" (expression relation_op expression) "THEN" line_number
 goto_stmt ::= "GOTO" line_number
 data_stmt ::= "DATA" expression ("," expression)*
 read_stmt ::= "READ" variable ("," variable)*
-stop_stmt ::= "STOP" 
-            | "END"
+stop_stmt ::= "STOP"
+end_stmt ::= "END"
+on_stmt ::=  "ON" expression "GO TO" "(" line_number ("," line_number)* ")"
 print_stmt ::= "PRINT" print_item? ( print_separator print_item? )* print_separator?
 rem_stmt ::= "REM" "<any text>"
-
 
 /* utilities */
 line_number ::= integer

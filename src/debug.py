@@ -13,8 +13,6 @@ def print_ast(node: ASTNode, prefix="", is_last=True, is_root=True, custom_label
         label = f"Let ({node.name.value})"
     elif isinstance(node, ReturnStatement):
         label = "Return"
-    elif isinstance(node, ExpressionStatement):
-        label = "ExpressionStatement"
     elif isinstance(node, Identifier):
         label = f"Identifier({node.value})"
     elif isinstance(node, IntegerLiteral):
@@ -58,14 +56,14 @@ def print_ast(node: ASTNode, prefix="", is_last=True, is_root=True, custom_label
         children.append((node.value, None))
     elif isinstance(node, ReturnStatement):
         children.append((node.value, None))
-    elif isinstance(node, ExpressionStatement):
+    elif isinstance(node, ):
         children.append((node.expression, None))
     elif isinstance(node, PrefixExpression):
         children.append((node.right, None))
     elif isinstance(node, InfixExpression):
         children.append((node.left, None))
         children.append((node.right, None))
-    elif isinstance(node, FunctionLiteral):
+    elif isinstance(node, FunctionDeclaration):
         for param in node.parameters:
             children.append((param, "Param:"))
         children.append((node.body, "Body:"))
