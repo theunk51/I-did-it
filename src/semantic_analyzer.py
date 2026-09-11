@@ -84,6 +84,7 @@ class SemanticAnalyzer:
             self.validate(stmt)
 
     def validate_LetStatement(self, node: LetStatement):
+        self.validate(node.name)
         value_type = self.validate(node.value)
         self.symbol_table[node.name.value] = value_type
 
@@ -105,8 +106,28 @@ class SemanticAnalyzer:
         return ValueType.BOOL
 
     def validate_Identifier(self, node: Identifier):
+        # check if the variable name matches the BASIC format
+        # TODO: add support for function names and their types (specifically builtin functions)
+        name = node.value.upper()
+
+        is_valid_variable = \
+            (name in self.BUILT_INS )  or \
+            (len(name) == 1 and name.isalpha())  or \
+            (len(name) == 2 and name[0].isalpha() and name[1].isdigit()) or \
+            (len(name) == 3 and name[:2] == "FN" and name[2].isalpha())
+
+        if not is_valid_variable:
+            raise SemanticError(
+                f"Invalid variable name: '{node.value}'. "
+                "Must be a single letter, or a letter followed by a digit (e.g., X, A1)."
+            )
+        
+        if name in self.BUILT_INS:
+            return ValueType.ANY
+        
         if node.value not in self.symbol_table:
             raise SemanticError(f"Undefined variable used: '{node.value}'")
+        
         return self.symbol_table[node.value]
 
     def validate_PrefixExpression(self, node: PrefixExpression):

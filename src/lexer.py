@@ -126,7 +126,7 @@ class Lexer:
         if match_one is not None:
             return Token(match_one, one_char)
         
-        raise Exception(f"Unknown character {one_char} as pos {self.pos}")
+        raise SyntaxError(f"Unknown character {one_char} as pos {self.pos}")
 
     def whitespace(self) -> None:
         while self.c.isspace() and self.c not in ('\0', '\n'):

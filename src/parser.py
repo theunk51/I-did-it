@@ -7,6 +7,9 @@ from src.ast_nodes import *
 
 DEFAULT_RULE = (None, None)
 
+class ParserError(Exception): 
+    pass
+
 class Parser:
     def __init__(self, source_code: str) -> None:
         self.lexer = Lexer(source_code)
@@ -34,16 +37,15 @@ class Parser:
                 self.__advance_token()
                 return self.previous_token
 
-        raise Exception(f"Expected type(s) {expected}. Got {self.current_token.type}")
+        self.error(f"Expected type(s) {expected}. Got {self.current_token.type}")
 
     def error(self, message: str):
-        raise Exception(message)
+        raise ParserError(message)
 
     @property
     def is_at_end(self):
         return self.current_token.type == TokenType.EOF
     
-
     # === PARSING FUNCTIONS === #
 
     def parse_program(self):
@@ -75,14 +77,16 @@ class Parser:
 
     def parse_let_statement(self):
         self.consume(TokenType.LET)
+        return self.parse_assign_statement()
 
+    def parse_assign_statement(self):
         name = Identifier(self.current_token.value)
         self.consume(TokenType.IDENTIFIER)
         
         self.consume(TokenType.EQ)
         
         value = self.parse_expression(Precedence.NONE)
-        return LetStatement(name=name, value=value)
+        return AssignStatement(name=name, value=value)
 
     def parse_return_statement(self):
         pass
@@ -201,9 +205,7 @@ class Parser:
         TokenType.STRING: (parse_literal, None),
         TokenType.BOOLEAN: (parse_literal, None),
         TokenType.IDENTIFIER: (parse_identifier, None),
-
-        # Built-ins act exactly like identifiers here
-        TokenType.SIN: (parse_identifier, None),
+        TokenType.SIN: (parse_identifier, None),  # Built-ins act exactly like identifiers here
         TokenType.COS: (parse_identifier, None),
         TokenType.TAN: (parse_identifier, None),
         TokenType.ATN: (parse_identifier, None),

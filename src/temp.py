@@ -6,7 +6,7 @@ from src.abi_specification import ABISpecification as ABI
 from src.debug import print_ast
 from src.ast_nodes import *
 from src.parser import Parser
-from src.semantic_analyzer import ValueType
+from src.semantic_analyzer import SemanticAnalyzer, SemanticError, ValueType
 from src.tokens import TokenType
 
 
@@ -302,24 +302,28 @@ if __name__ == "__main__":
         (1, "5 <> 10"),
         (1, "(10 > 5) + (5 < 10) = 2"),
         (0, "10 > 5 = 0"),
-        (5, """
-            let x = 5
-            x
-        """),
+        (5, "let x = 5\nx"),
         (15, """
-            let first = 5
-            let second = 10
-            first + second
+            let a1 = 5
+            let a2 = 10
+            a1 + a2
         """),
-        
         (42, """
             let a = 1
             let b = 2
             let c = 3
-            let result = a + b + c + 36
-            result
+            let r = a + b + c + 36
+            r
         """),
-    ]
+        (SemanticError, "let foo = 5"),
+        (SemanticError, "let ab = 5"),
+        (Exception, "let 1b = 5"),
+        (Exception, "let a_ = 5"),
+        (SemanticError, "x"),
+        (SemanticError, "let x = 5\nx + y"),
+        # TODO: this should probably be a parser error since the LET statement is missing
+        (SemanticError, "x = 50")
+    ][60:]
 
     num_tests = len(TEST_CASES)
     num_ran = 0
@@ -334,7 +338,7 @@ if __name__ == "__main__":
         percent = int(progress * 100)
         print(f"\rTesting: [{bar}] {percent}% ({current}/{total})", end="", flush=True)
 
-    def assert_compilation(expected: int, source_code: str):
+    def assert_compilation(expected: int | Exception | str, source_code: str):
         global num_ran, num_passed
 
         indented_source = "\n".join("    " + line.strip() for line in source_code.strip().split("\n"))
@@ -345,11 +349,21 @@ if __name__ == "__main__":
 
             try:
                 ast = Parser(numbered_code).parse_program()
+                SemanticAnalyzer().analyze(ast)
                 gen = Generator(ast).generate_assembly_file("temp.s")
             except Exception as e:
-                failures.append(f"{num_ran}. Parser Crashed: {repr(e)}\n  Source:\n{indented_source}")
+                if isinstance(expected, type) and issubclass(expected, Exception) and isinstance(e, expected):
+                    num_passed += 1
+                elif isinstance(expected, str) and expected in repr(e):
+                    num_passed += 1
+                else:
+                    failures.append(f"{num_ran}. Parser Crashed: {repr(e)}\n  Source:\n{indented_source}")
                 return
 
+            if isinstance(expected, (Exception, str)):
+                failures.append(f"{num_ran}. Expected a '{expected!r}', but compilation somehow succeeded!\n  Source:\n{indented_source}")
+                return
+            
             process = subprocess.run(
                 ["gcc", "-static", "-o", "temp.exe", "temp.s"], capture_output=True, text=True
             )
