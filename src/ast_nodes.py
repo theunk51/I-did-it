@@ -69,7 +69,7 @@ class CallExpression(Expression):
 # ==========================================
 @dataclass
 class LetStatement(Statement):
-    name: Identifier
+    names: list[Identifier]
     value: Expression
 
 @dataclass

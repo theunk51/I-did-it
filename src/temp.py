@@ -231,8 +231,9 @@ class Generator:
 
     def _compile_LetStatement(self, node: LetStatement):
         self.compile_node(node.value)
-        destination = self.get_variable_location(node.name.value)
-        self.emit(f"movq %rax, {destination}")
+        for identifier in node.names:
+            destination = self.get_variable_location(node.name.value)
+            self.emit(f"movq %rax, {destination}")
 
     
 ##################################
@@ -308,6 +309,7 @@ if __name__ == "__main__":
             let a2 = 10
             a1 + a2
         """),
+        (30, "let a = b = 15\na+b"),
         (42, """
             let a = 1
             let b = 2
@@ -317,8 +319,8 @@ if __name__ == "__main__":
         """),
         (SemanticError, "let foo = 5"),
         (SemanticError, "let ab = 5"),
-        (Exception, "let 1b = 5"),
-        (Exception, "let a_ = 5"),
+        (ParserError, "let 1b = 5"),
+        (SyntaxError, "let a_ = 5"),
         (SemanticError, "x"),
         (SemanticError, "let x = 5\nx + y"),
         # TODO: this should probably be a parser error since the LET statement is missing

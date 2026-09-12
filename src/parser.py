@@ -77,17 +77,16 @@ class Parser:
 
     def parse_let_statement(self):
         self.consume(TokenType.LET)
-        return self.parse_assign_statement()
+        names = []
 
-    def parse_assign_statement(self):
-        name = Identifier(self.current_token.value)
-        self.consume(TokenType.IDENTIFIER)
-        
-        self.consume(TokenType.EQ)
+        while self.current_token.type == TokenType.IDENTIFIER and self.next_token.type == TokenType.EQ:
+            names.append(Identifier(self.current_token.value))
+            self.consume(TokenType.IDENTIFIER)
+            self.consume(TokenType.EQ)
         
         value = self.parse_expression(Precedence.NONE)
         return AssignStatement(name=name, value=value)
-
+        return LetStatement(names, value)
     def parse_return_statement(self):
         pass
 

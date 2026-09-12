@@ -49,6 +49,7 @@ class FunctionSignature:
 
 class SemanticAnalyzer:
     PRIMITIVE_RULES = _build_primitive_rules()
+    BUILT_INS = frozenset(("SIN", "COS", "TAN", "ATN", "EXP", "LOG", "ABS", "SQR", "INT", "RND", "TAB"))
     BUILT_IN_FUNCTIONS = {
         "TAB": FunctionSignature(ValueType.VOID, [(ValueType.INT, ValueType.FLOAT)]),
         "SIN": FunctionSignature(ValueType.FLOAT, [(ValueType.INT, ValueType.FLOAT)]),
@@ -63,6 +64,25 @@ class SemanticAnalyzer:
     def analyze(self, ast: ASTNode):
         self.symbol_table.clear()
         self.validate(ast)
+
+    def check_variable_name(self, name: str, is_assignment: bool = False):
+        name = name.upper()
+
+        # protect builtins from being overwritten
+        if is_assignment and name in self.BUILT_INS:
+            raise SemanticError(f"Cannot assign to '{name}' because it is a built-in function.")
+
+        # enforce BASIC naming rules
+        if (name in self.BUILT_INS )  or \
+           (len(name) == 1 and name.isalpha())  or \
+           (len(name) == 2 and name[0].isalpha() and name[1].isdigit()) or \
+           (len(name) == 3 and name[:2] == "FN" and name[2].isalpha()):
+            return
+        
+        raise SemanticError(
+            f"Invalid variable name: '{name}'. "
+            "Must be a single letter, or a letter followed by a digit (e.g., X, A1)."
+        )
 
     def validate(self, node: ASTNode):
         method_name = f'validate_{type(node).__name__}'
@@ -108,28 +128,17 @@ class SemanticAnalyzer:
     def validate_Identifier(self, node: Identifier):
         # check if the variable name matches the BASIC format
         # TODO: add support for function names and their types (specifically builtin functions)
-        name = node.value.upper()
+        name = node.value
+        self.check_variable_name(name)
 
-        is_valid_variable = \
-            (name in self.BUILT_INS )  or \
-            (len(name) == 1 and name.isalpha())  or \
-            (len(name) == 2 and name[0].isalpha() and name[1].isdigit()) or \
-            (len(name) == 3 and name[:2] == "FN" and name[2].isalpha())
-
-        if not is_valid_variable:
-            raise SemanticError(
-                f"Invalid variable name: '{node.value}'. "
-                "Must be a single letter, or a letter followed by a digit (e.g., X, A1)."
-            )
-        
         if name in self.BUILT_INS:
             return ValueType.ANY
         
-        if node.value not in self.symbol_table:
-            raise SemanticError(f"Undefined variable used: '{node.value}'")
+        if name not in self.symbol_table:
+            raise SemanticError(f"Undefined variable used: '{name}'")
         
-        return self.symbol_table[node.value]
-
+        return self.symbol_table[name]
+        
     def validate_PrefixExpression(self, node: PrefixExpression):
         right_type = self.validate(node.right)
         
